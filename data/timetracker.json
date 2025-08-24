@@ -1,23 +1,15 @@
 {
   "sessions": [
     {
-      "id": "meo0hhgnuicyokoafj",
-      "start": "2025-08-23T08:42:43.093Z",
-      "end": "2025-08-23T08:42:46.823Z",
-      "project": "test",
-      "description": ""
-    },
-    {
-      "id": "men5lt5zr18lrk8q2fj",
-      "start": "2025-08-22T18:18:02.348Z",
-      "end": "2025-08-22T18:18:20.519Z",
+      "id": "mepxgnzbaeecklpu9lj",
+      "start": "2025-08-24T16:53:40.970Z",
+      "end": "2025-08-24T16:53:42.119Z",
       "project": "test",
       "description": ""
     }
   ],
   "projects": [
     "test",
-    "test",
-    "testr"
+    "test2"
   ]
 }

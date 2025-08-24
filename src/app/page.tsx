@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,28 +13,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { TimeTrackerData, Session, CurrentSession } from "@/types";
-import {
-  loadDataFromServer,
-  saveDataToServer,
-  saveCurrentSessionToServer,
-  clearCurrentSessionFromServer,
-  formatDuration,
-  generateId,
-} from "@/lib/api-storage";
+import { Session, CurrentSession } from "@/types";
+import { formatDuration, generateId } from "@/lib/api-storage";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { FloatingNavbar } from "@/components/ui/floating-navbar";
+import { useTimeTracker } from "@/lib/context";
 
 type Screen = "clock-in" | "timer" | "edit";
 
 export default function Home() {
-  const [data, setData] = useState<TimeTrackerData>({
-    sessions: [],
-    projects: [],
-  });
-  const [currentSession, setCurrentSession] = useState<CurrentSession | null>(
-    null
-  );
+  const router = useRouter();
+  const { data, setData, currentSession, setCurrentSession, isLoading } =
+    useTimeTracker();
+
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [newProject, setNewProject] = useState<string>("");
   const [showNewProject, setShowNewProject] = useState(false);
@@ -41,48 +33,26 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>("clock-in");
+  const isTransitioningRef = useRef(false);
 
-  // Load data on component mount
+  // Set selected project when data loads
   useEffect(() => {
-    const loadDataAsync = async () => {
-      const loadedData = await loadDataFromServer();
-      setData(loadedData);
-      if (loadedData.projects.length > 0) {
-        setSelectedProject(loadedData.projects[0]);
-      }
-
-      // Restore current session from server if it exists
-      if (loadedData.currentSession) {
-        const session = loadedData.currentSession;
-        // Check if the session is still valid (not older than 24 hours)
-        const sessionStart = new Date(session.start);
-        const now = new Date();
-        if (now.getTime() - sessionStart.getTime() < 24 * 60 * 60 * 1000) {
-          // Convert start back to Date object for proper functionality
-          const restoredSession: CurrentSession = {
-            start: sessionStart,
-            project: session.project,
-            description: session.description,
-            elapsed: now.getTime() - sessionStart.getTime(),
-          };
-          setCurrentSession(restoredSession);
-          setCurrentScreen("timer");
-        } else {
-          // Session is too old, clear it from server
-          await clearCurrentSessionFromServer();
-        }
-      }
-    };
-
-    loadDataAsync();
-  }, []);
-
-  // Save data whenever it changes
-  useEffect(() => {
-    if (data.sessions.length > 0 || data.projects.length > 0) {
-      saveDataToServer(data);
+    if (data.projects.length > 0 && !selectedProject) {
+      setSelectedProject(data.projects[0]);
     }
-  }, [data]);
+  }, [data.projects, selectedProject]);
+
+  // Set screen based on current session only when starting a new session
+  useEffect(() => {
+    if (
+      currentSession &&
+      currentScreen !== "timer" &&
+      !isTransitioningRef.current
+    ) {
+      console.log("Auto-switching to timer screen");
+      setCurrentScreen("timer");
+    }
+  }, [currentSession, currentScreen]);
 
   // Update current time every second for live timer
   useEffect(() => {
@@ -102,10 +72,10 @@ export default function Home() {
       elapsed: 0,
     };
 
+    isTransitioningRef.current = true;
     setCurrentSession(session);
     setCurrentScreen("timer");
-    // Save session to server for persistence
-    await saveCurrentSessionToServer(session);
+    isTransitioningRef.current = false;
   };
 
   const stopTimer = async () => {
@@ -125,11 +95,13 @@ export default function Home() {
       sessions: [newSession, ...prev.sessions],
     }));
 
-    setCurrentSession(null);
+    // Set the editing session first, then clear current session
+    isTransitioningRef.current = true;
+    console.log("Stopping timer, setting screen to edit");
     setEditingSession(newSession);
     setCurrentScreen("edit");
-    // Clear current session from server
-    await clearCurrentSessionFromServer();
+    setCurrentSession(null);
+    isTransitioningRef.current = false;
   };
 
   const addProject = () => {
@@ -165,15 +137,29 @@ export default function Home() {
 
     setEditingSession(null);
     // Navigate to history page after saving
-    window.location.href = "/history";
+    router.push("/history");
   };
 
   const backToClockIn = async () => {
+    isTransitioningRef.current = true;
     setCurrentScreen("clock-in");
     setCurrentSession(null);
-    // Clear any stored session from server
-    await clearCurrentSessionFromServer();
+    setEditingSession(null);
+    isTransitioningRef.current = false;
   };
+
+  // Show loading state
+  console.log("Page: isLoading =", isLoading, "data =", data);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 flex flex-col pb-28 sm:pb-32">
+        <div className="max-w-md mx-auto w-full flex-1 flex flex-col justify-center">
+          <div className="text-center text-muted-foreground">Loading...</div>
+        </div>
+        <FloatingNavbar currentRoute="home" />
+      </div>
+    );
+  }
 
   const renderClockInScreen = () => (
     <div className="space-y-6">
@@ -277,100 +263,114 @@ export default function Home() {
     </div>
   );
 
-  const renderEditScreen = () => (
-    <div className="space-y-6">
-      <Card>
-        <CardContent className="p-6 space-y-6">
-          {/* Project Selection */}
-          <div className="w-full">
-            <Select
-              value={editingSession!.project}
-              onValueChange={(value) =>
-                setEditingSession({ ...editingSession!, project: value })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {data.projects.map((project) => (
-                  <SelectItem key={project} value={project}>
-                    {project}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+  const renderEditScreen = () => {
+    if (!editingSession) {
+      return (
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="p-6 text-center text-muted-foreground">
+              Loading session data...
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
 
-          {/* Date and Time Pickers */}
-          <div className="space-y-6">
-            <DateTimePicker
-              date={new Date(editingSession!.start)}
-              onDateTimeChange={(date) => {
-                setEditingSession({
-                  ...editingSession!,
-                  start: date.toISOString(),
-                });
-              }}
-              dateLabel="Start Date"
-              timeLabel="Start Time"
-              className="w-full"
-            />
-            <DateTimePicker
-              date={new Date(editingSession!.end!)}
-              onDateTimeChange={(date) => {
-                setEditingSession({
-                  ...editingSession!,
-                  end: date.toISOString(),
-                });
-              }}
-              dateLabel="End Date"
-              timeLabel="End Time"
-              className="w-full"
-            />
-          </div>
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="p-6 space-y-6">
+            {/* Project Selection */}
+            <div className="w-full">
+              <Select
+                value={editingSession.project}
+                onValueChange={(value) =>
+                  setEditingSession({ ...editingSession, project: value })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {data.projects.map((project) => (
+                    <SelectItem key={project} value={project}>
+                      {project}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Description */}
-          <div className="w-full">
-            <Input
-              value={editingSession!.description}
-              onChange={(e) =>
-                setEditingSession({
-                  ...editingSession!,
-                  description: e.target.value,
-                })
-              }
-              placeholder="What did you work on?"
-              className="w-full"
-            />
-          </div>
+            {/* Date and Time Pickers */}
+            <div className="space-y-6">
+              <DateTimePicker
+                date={new Date(editingSession.start)}
+                onDateTimeChange={(date) => {
+                  setEditingSession({
+                    ...editingSession,
+                    start: date.toISOString(),
+                  });
+                }}
+                dateLabel="Start Date"
+                timeLabel="Start Time"
+                className="w-full"
+              />
+              <DateTimePicker
+                date={new Date(editingSession.end!)}
+                onDateTimeChange={(date) => {
+                  setEditingSession({
+                    ...editingSession,
+                    end: date.toISOString(),
+                  });
+                }}
+                dateLabel="End Date"
+                timeLabel="End Time"
+                className="w-full"
+              />
+            </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-2 w-full">
-            <Button onClick={saveEdit} className="flex-1">
-              Save
-            </Button>
-            <Button
-              onClick={backToClockIn}
-              variant="outline"
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+            {/* Description */}
+            <div className="w-full">
+              <Input
+                value={editingSession.description}
+                onChange={(e) =>
+                  setEditingSession({
+                    ...editingSession,
+                    description: e.target.value,
+                  })
+                }
+                placeholder="What did you work on?"
+                className="w-full"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2 w-full">
+              <Button onClick={saveEdit} className="flex-1">
+                Save
+              </Button>
+              <Button
+                onClick={backToClockIn}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 flex flex-col pb-28 sm:pb-32">
+    <div className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 flex flex-col pb-28 sm:pb-32">
       <div className="max-w-md mx-auto w-full flex-1 flex flex-col justify-center">
         {/* Screen Content */}
         <div className="space-y-6">
           {currentScreen === "clock-in" && renderClockInScreen()}
           {currentScreen === "timer" && renderTimerScreen()}
-          {currentScreen === "edit" && renderEditScreen()}
+          {currentScreen === "edit" && editingSession && renderEditScreen()}
         </div>
       </div>
 

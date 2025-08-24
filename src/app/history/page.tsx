@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -12,15 +11,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TimeTrackerData, Session } from "@/types";
-import {
-  loadDataFromServer,
-  saveDataToServer,
-  formatDuration,
-  formatTime,
-  formatDate,
-} from "@/lib/api-storage";
+import { Session } from "@/types";
+import { formatDuration, formatTime, formatDate } from "@/lib/api-storage";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Calendar,
   Dollar,
@@ -29,12 +23,11 @@ import {
   Trash,
 } from "@mynaui/icons-react";
 import { FloatingNavbar } from "@/components/ui/floating-navbar";
+import { useTimeTracker } from "@/lib/context";
 
 export default function History() {
-  const [data, setData] = useState<TimeTrackerData>({
-    sessions: [],
-    projects: [],
-  });
+  const { data, setData, isLoading } = useTimeTracker();
+
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
@@ -55,19 +48,17 @@ export default function History() {
     description: "",
   });
 
-  useEffect(() => {
-    const loadDataAsync = async () => {
-      const loadedData = await loadDataFromServer();
-      setData(loadedData);
-    };
-    loadDataAsync();
-  }, []);
-
-  useEffect(() => {
-    if (data.sessions.length > 0 || data.projects.length > 0) {
-      saveDataToServer(data);
-    }
-  }, [data]);
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 pb-28 sm:pb-32">
+        <div className="max-w-2xl mx-auto space-y-4 sm:space-y-8">
+          <div className="text-center text-muted-foreground">Loading...</div>
+        </div>
+        <FloatingNavbar currentRoute="history" />
+      </div>
+    );
+  }
 
   const getTotalTimeForProject = (projectName: string) => {
     return data.sessions
@@ -166,13 +157,29 @@ export default function History() {
   };
 
   const cashOutSessions = (upToDate: string) => {
+    console.log("Cash out function called with date:", upToDate);
+    // Create a date object with the selected date and current time (end of day)
     const cashOutDate = new Date(upToDate);
+    cashOutDate.setHours(23, 59, 59, 999); // Set to end of the selected day
+    console.log("Cash out date object (end of day):", cashOutDate);
+
     const sessionsToCashOut = data.sessions.filter((session) => {
       const sessionDate = new Date(session.start);
-      return sessionDate <= cashOutDate && !session.cashedOut;
+      // Ensure cashedOut property exists, default to false if undefined
+      const isCashedOut = session.cashedOut || false;
+      const shouldCashOut = sessionDate <= cashOutDate && !isCashedOut;
+      console.log(
+        `Session ${session.id}: date=${sessionDate}, cashedOut=${isCashedOut}, shouldCashOut=${shouldCashOut}`
+      );
+      return shouldCashOut;
     });
 
-    if (sessionsToCashOut.length === 0) return;
+    console.log("Sessions to cash out:", sessionsToCashOut);
+
+    if (sessionsToCashOut.length === 0) {
+      console.log("No sessions to cash out");
+      return;
+    }
 
     if (
       confirm(
@@ -181,16 +188,21 @@ export default function History() {
         } sessions as cashed out up to ${cashOutDate.toLocaleDateString()}. Continue?`
       )
     ) {
-      setData((prev) => ({
-        ...prev,
-        sessions: prev.sessions.map((session) => {
+      console.log("User confirmed, updating sessions...");
+      setData((prev) => {
+        const updatedSessions = prev.sessions.map((session) => {
           const sessionDate = new Date(session.start);
           if (sessionDate <= cashOutDate) {
             return { ...session, cashedOut: true };
           }
           return session;
-        }),
-      }));
+        });
+        console.log("Updated sessions:", updatedSessions);
+        return {
+          ...prev,
+          sessions: updatedSessions,
+        };
+      });
     }
   };
 
@@ -268,7 +280,7 @@ export default function History() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-2 sm:p-4 pb-28 sm:pb-32">
+    <div className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 pb-28 sm:pb-32">
       <div className="max-w-2xl mx-auto space-y-4 sm:space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -358,8 +370,12 @@ export default function History() {
                       new Date(b.start).getTime() - new Date(a.start).getTime()
                   );
 
-                  const normalSessions = sessions.filter((s) => !s.cashedOut);
-                  const cashedOutSessions = sessions.filter((s) => s.cashedOut);
+                  const normalSessions = sessions.filter(
+                    (s) => !(s.cashedOut || false)
+                  );
+                  const cashedOutSessions = sessions.filter(
+                    (s) => s.cashedOut || false
+                  );
 
                   return (
                     <>
@@ -375,11 +391,13 @@ export default function History() {
                         return (
                           <Card
                             key={session.id}
-                            className={session.cashedOut ? "opacity-60" : ""}
+                            className={
+                              session.cashedOut || false ? "opacity-60" : ""
+                            }
                           >
                             <CardContent
                               className={`p-4 ${
-                                session.cashedOut
+                                session.cashedOut || false
                                   ? "bg-muted/5 text-muted-foreground"
                                   : ""
                               }`}
@@ -514,7 +532,7 @@ export default function History() {
                                     <div className="text-base font-semibold text-primary">
                                       {session.project}
                                     </div>
-                                    {session.cashedOut && (
+                                    {(session.cashedOut || false) && (
                                       <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
                                         Cashed Out
                                       </span>
@@ -817,19 +835,13 @@ export default function History() {
               <h3 className="text-lg font-semibold mb-4">Cash Out Sessions</h3>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="cash-out-date">
-                    Mark sessions as cashed out up to:
-                  </Label>
-                  <div className="mt-2">
-                    <DateTimePicker
-                      date={new Date(cashOutDate)}
-                      onDateTimeChange={(date) => {
-                        setCashOutDate(date.toISOString().split("T")[0]);
-                      }}
-                      dateLabel="Cash Out Date"
-                      timeLabel="Time"
-                    />
-                  </div>
+                  <DatePicker
+                    date={new Date(cashOutDate)}
+                    onDateChange={(date) =>
+                      setCashOutDate(date.toISOString().split("T")[0])
+                    }
+                    label="Mark sessions as cashed out up to:"
+                  />
                 </div>
                 <div className="text-sm text-muted-foreground">
                   This will mark all sessions up to the selected date as cashed
