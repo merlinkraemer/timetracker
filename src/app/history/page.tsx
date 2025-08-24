@@ -54,7 +54,7 @@ export default function History() {
   // Show loading state
   if (isLoading) {
     return (
-      <div 
+      <div
         ref={elementRef}
         className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 pb-28 sm:pb-32 swipe-container"
       >
@@ -126,8 +126,6 @@ export default function History() {
 
     setCurrentMonth(`${newYear}-${String(newMonth).padStart(2, "0")}`);
   };
-
-
 
   const exportAndCashOutSessions = (upToDate: string, projectName: string) => {
     console.log(
@@ -312,7 +310,7 @@ export default function History() {
   };
 
   return (
-    <div 
+    <div
       ref={elementRef}
       className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 pb-28 sm:pb-32 swipe-container"
     >
