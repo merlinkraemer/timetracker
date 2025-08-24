@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,15 +15,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Session } from "@/types";
 import { formatDuration, formatTime } from "@/lib/api-storage";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
-import { DatePicker } from "@/components/ui/date-picker";
 import { ChevronLeft, ChevronRight } from "@mynaui/icons-react";
-import { Check, X, Edit, Trash, Download, FileText } from "lucide-react";
+import { Check, X, Edit, Trash, Download } from "lucide-react";
 import * as XLSX from "xlsx";
 import { FloatingNavbar } from "@/components/ui/floating-navbar";
 import { useTimeTracker } from "@/lib/context";
+import { useSwipeNavigation } from "@/lib/use-swipe-navigation";
 
 export default function History() {
+  const router = useRouter();
   const { data, setData, isLoading } = useTimeTracker();
+
+  // Swipe navigation for mobile
+  const { elementRef } = useSwipeNavigation({
+    onSwipeLeft: () => router.push("/"),
+    onSwipeRight: () => router.push("/"),
+  });
 
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -46,7 +54,10 @@ export default function History() {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 pb-28 sm:pb-32">
+      <div 
+        ref={elementRef}
+        className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 pb-28 sm:pb-32 swipe-container"
+      >
         <div className="max-w-2xl mx-auto space-y-4 sm:space-y-8">
           <div className="text-center text-muted-foreground">Loading...</div>
         </div>
@@ -116,68 +127,7 @@ export default function History() {
     setCurrentMonth(`${newYear}-${String(newMonth).padStart(2, "0")}`);
   };
 
-  const exportToCSV = (projectName: string) => {
-    // Filter sessions for the selected project
-    const projectSessions = data.sessions.filter(
-      (session) => session.project === projectName
-    );
 
-    if (projectSessions.length === 0) {
-      alert("No sessions found for this project");
-      return;
-    }
-
-    // Create CSV content
-    const csvContent = [
-      // Header row
-      ["Date", "Start Time", "End Time", "Duration", "Description"],
-      // Data rows
-      ...projectSessions.map((session) => {
-        const startDate = new Date(session.start);
-        const endDate = session.end ? new Date(session.end) : null;
-        const duration = endDate ? endDate.getTime() - startDate.getTime() : 0;
-
-        return [
-          startDate.toLocaleDateString("de-DE", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          }),
-          startDate.toLocaleTimeString("de-DE", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-          endDate
-            ? endDate.toLocaleTimeString("de-DE", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : "Running",
-          formatDuration(duration),
-          session.description || "",
-        ];
-      }),
-    ];
-
-    // Convert to CSV string
-    const csvString = csvContent
-      .map((row) => row.map((cell) => `"${cell}"`).join(","))
-      .join("\n");
-
-    // Create and download file
-    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `${projectName.replace(/[^a-z0-9]/gi, "_")}.csv`
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   const exportAndCashOutSessions = (upToDate: string, projectName: string) => {
     console.log(
@@ -362,7 +312,10 @@ export default function History() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 pb-28 sm:pb-32">
+    <div 
+      ref={elementRef}
+      className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 pb-28 sm:pb-32 swipe-container"
+    >
       <div className="max-w-2xl mx-auto space-y-4 sm:space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -999,8 +952,8 @@ export default function History() {
 
         {/* Export and Cash Out Popup */}
         {showExportPopup && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-background border border-border rounded-lg p-4 sm:p-6 max-w-md w-full">
               <h3 className="text-lg font-semibold mb-4">Export Sessions</h3>
               <div className="space-y-4">
                 <div>
@@ -1039,11 +992,11 @@ export default function History() {
                     dateLabel="Export sessions up to:"
                   />
                 </div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground leading-relaxed">
                   This will export all sessions up to the selected date for the
                   selected project as an Excel file.
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button
                     onClick={() => {
                       exportAndCashOutSessions(exportDate, exportProject);

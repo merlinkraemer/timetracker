@@ -1,5 +1,27 @@
 {
-  "sessions": [],
+  "sessions": [
+    {
+      "id": "meq7v352ldc1lx1dn49",
+      "start": "2025-08-24T21:44:50.060Z",
+      "end": "2025-08-24T21:44:51.110Z",
+      "project": "test",
+      "description": ""
+    },
+    {
+      "id": "meq7q6lsbfxtf2sbhc",
+      "start": "2025-08-24T21:41:01.294Z",
+      "end": "2025-08-24T21:41:02.320Z",
+      "project": "test",
+      "description": ""
+    },
+    {
+      "id": "meq6t61j6y6j2asbgk8",
+      "start": "2025-08-24T21:15:19.976Z",
+      "end": "2025-08-24T21:15:21.943Z",
+      "project": "SUB",
+      "description": ""
+    }
+  ],
   "projects": [
     {
       "name": "Skydive Events",
@@ -7,6 +29,10 @@
     },
     {
       "name": "SUB",
+      "color": "#3B82F6"
+    },
+    {
+      "name": "test",
       "color": "#3B82F6"
     }
   ]

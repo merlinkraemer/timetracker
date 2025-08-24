@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import { formatDuration, generateId } from "@/lib/api-storage";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { FloatingNavbar } from "@/components/ui/floating-navbar";
 import { useTimeTracker } from "@/lib/context";
+import { useSwipeNavigation } from "@/lib/use-swipe-navigation";
 import {
   Play,
   Square,
@@ -43,6 +44,12 @@ export default function Home() {
   const router = useRouter();
   const { data, setData, currentSession, setCurrentSession, isLoading } =
     useTimeTracker();
+
+  // Swipe navigation for mobile
+  const { elementRef } = useSwipeNavigation({
+    onSwipeLeft: () => router.push("/history"),
+    onSwipeRight: () => router.push("/"),
+  });
 
   const [newProject, setNewProject] = useState({ name: "", color: "#3B82F6" });
   const [showNewProject, setShowNewProject] = useState(false);
@@ -108,7 +115,7 @@ export default function Home() {
   };
 
   // Debug function to reset stuck timer state
-  const resetTimerState = () => {
+  const resetTimerState = useCallback(() => {
     console.log("Resetting timer state...");
     setCurrentSession(null);
     setIsPaused(false);
@@ -116,7 +123,7 @@ export default function Home() {
     setTotalPausedTime(0);
     setEditingSession(null);
     setEditingProjectName(null);
-  };
+  }, [setCurrentSession]);
 
   // Expose reset function globally for debugging
   useEffect(() => {
@@ -310,9 +317,23 @@ export default function Home() {
   console.log("Page: isLoading =", isLoading, "data =", data);
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 flex flex-col pb-28 sm:pb-32">
+      <div
+        ref={elementRef}
+        className="h-screen bg-background text-foreground px-2 sm:px-4 flex flex-col swipe-container"
+      >
         <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col justify-center">
           <div className="text-center text-muted-foreground">Loading...</div>
+        </div>
+        <div className="absolute top-4 right-4 z-10">
+          <Button
+            onClick={() => {}}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+            disabled
+          >
+            Edit
+          </Button>
         </div>
         <FloatingNavbar currentRoute="home" />
       </div>
@@ -393,13 +414,13 @@ export default function Home() {
                 }
               }}
             >
-              <CardContent className="pl-4 pr-6 py-4">
-                <div className="flex items-center justify-between">
+              <CardContent className="px-3 sm:px-4 py-3 sm:py-4">
+                <div className="flex items-center justify-between gap-2 sm:gap-4">
                   {/* Left: Timer and Project Name */}
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1 min-w-0 flex-1">
                     {/* Timer Display */}
                     <div
-                      className={`text-3xl font-bold ${
+                      className={`text-2xl sm:text-3xl font-bold ${
                         editingSession && editingProjectName === project.name
                           ? "text-muted-foreground/60"
                           : isCurrentTimer
@@ -434,16 +455,16 @@ export default function Home() {
                     </div>
 
                     {/* Project Name or Edit Input */}
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       {isEditing ? (
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           {/* Color Picker */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-9 px-4 flex items-center gap-2 whitespace-nowrap"
+                                className="h-8 sm:h-9 px-3 sm:px-4 flex items-center gap-2 whitespace-nowrap text-xs sm:text-sm flex-shrink-0"
                               >
                                 <div
                                   className="w-3 h-3 rounded-full"
@@ -451,7 +472,7 @@ export default function Home() {
                                     backgroundColor: editProjectForm.color,
                                   }}
                                 />
-                                Color
+                                <span className="hidden sm:inline">Color</span>
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent className="w-48">
@@ -506,7 +527,7 @@ export default function Home() {
                               if (e.key === "Escape") cancelProjectEdit();
                             }}
                             autoFocus
-                            className="w-full text-base font-medium"
+                            className="w-full text-sm sm:text-base font-medium min-w-0"
                           />
                         </div>
                       ) : (
@@ -522,7 +543,7 @@ export default function Home() {
                             }}
                           />
                           <h3
-                            className={`text-base font-medium text-muted-foreground ${
+                            className={`text-sm sm:text-base font-medium text-muted-foreground truncate ${
                               isCurrentTimer
                                 ? isPaused
                                   ? "text-blue-700 dark:text-blue-300"
@@ -538,21 +559,21 @@ export default function Home() {
                   </div>
 
                   {/* Right: Icons and Edit Actions */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                     {/* Timer Control Icons - Hidden in Edit Mode */}
                     {!editMode && (
                       <>
                         {isCurrentTimer ? (
                           <>
                             <div
-                              className={`h-12 w-12 rounded-full text-white flex items-center justify-center ${
+                              className={`h-10 w-10 sm:h-12 sm:w-12 rounded-full text-white flex items-center justify-center ${
                                 isPaused ? "bg-blue-600" : "bg-green-600"
                               }`}
                             >
                               {isPaused ? (
-                                <Play className="h-5 w-5 fill-current" />
+                                <Play className="h-4 w-4 sm:h-5 sm:w-5 fill-current" />
                               ) : (
-                                <Pause className="h-5 w-5 fill-current" />
+                                <Pause className="h-4 w-4 sm:h-5 sm:w-5 fill-current" />
                               )}
                             </div>
                             {isPaused && (
@@ -563,7 +584,7 @@ export default function Home() {
                                 }}
                                 variant="destructive"
                                 size="lg"
-                                className="h-12 w-12 rounded-full text-white"
+                                className="h-10 w-10 sm:h-12 sm:w-12 rounded-full text-white"
                                 disabled={
                                   editMode ||
                                   !!(
@@ -572,7 +593,7 @@ export default function Home() {
                                   )
                                 }
                               >
-                                <Square className="h-5 w-5 fill-current" />
+                                <Square className="h-4 w-4 sm:h-5 sm:w-5 fill-current" />
                               </Button>
                             )}
                           </>
@@ -586,9 +607,9 @@ export default function Home() {
                               }}
                               variant="outline"
                               size="lg"
-                              className="h-12 w-12 rounded-full"
+                              className="h-10 w-10 sm:h-12 sm:w-12 rounded-full"
                             >
-                              <X className="h-5 w-5" />
+                              <X className="h-4 w-4 sm:h-5 sm:w-5" />
                             </Button>
                             <Button
                               onClick={(e) => {
@@ -597,14 +618,14 @@ export default function Home() {
                               }}
                               type="submit"
                               size="lg"
-                              className="h-12 w-12 rounded-full bg-green-600 text-white hover:bg-green-600"
+                              className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-green-600 text-white hover:bg-green-600"
                             >
-                              <Save className="h-5 w-5" />
+                              <Save className="h-4 w-4 sm:h-5 sm:w-5" />
                             </Button>
                           </>
                         ) : (
-                          <div className="h-12 w-12 rounded-full bg-green-600 flex items-center justify-center">
-                            <Play className="h-5 w-5 fill-current text-white" />
+                          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-green-600 flex items-center justify-center">
+                            <Play className="h-4 w-4 sm:h-5 sm:w-5 fill-current text-white" />
                           </div>
                         )}
                       </>
@@ -612,23 +633,23 @@ export default function Home() {
 
                     {/* Edit Mode Actions */}
                     {editMode && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-1 sm:gap-2">
                         {isEditing ? (
                           <>
                             <Button
                               onClick={cancelProjectEdit}
                               variant="outline"
                               size="lg"
-                              className="h-12 w-12 rounded-full"
+                              className="h-10 w-10 sm:h-12 sm:w-12 rounded-full"
                             >
-                              <X className="h-5 w-5" />
+                              <X className="h-4 w-4 sm:h-5 sm:w-5" />
                             </Button>
                             <Button
                               type="submit"
                               size="lg"
-                              className="h-12 w-12 rounded-full bg-green-600 text-white hover:bg-green-600"
+                              className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-green-600 text-white hover:bg-green-600"
                             >
-                              <Save className="h-5 w-5" />
+                              <Save className="h-4 w-4 sm:h-5 sm:w-5" />
                             </Button>
                           </>
                         ) : (
@@ -637,17 +658,17 @@ export default function Home() {
                               onClick={() => startEditingProject(project.name)}
                               variant="outline"
                               size="lg"
-                              className="h-12 w-12 rounded-full"
+                              className="h-10 w-10 sm:h-12 sm:w-12 rounded-full"
                             >
-                              <Edit className="h-5 w-5" />
+                              <Edit className="h-4 w-4 sm:h-5 sm:w-5" />
                             </Button>
                             <Button
                               onClick={() => deleteProject(project.name)}
                               variant="outline"
                               size="lg"
-                              className="h-12 w-12 rounded-full text-destructive hover:text-destructive"
+                              className="h-10 w-10 sm:h-12 sm:w-12 rounded-full text-destructive hover:text-destructive"
                             >
-                              <Trash className="h-5 w-5" />
+                              <Trash className="h-4 w-4 sm:h-5 sm:w-5" />
                             </Button>
                           </>
                         )}
@@ -766,31 +787,23 @@ export default function Home() {
     <>
       {showNewProject ? (
         <Card className={`transition-colors duration-200 cursor-default`}>
-          <CardContent className="pl-6 pr-8 py-6">
-            <div className="flex items-center justify-between">
-              {/* Left: Timer Display */}
-              <div className="flex flex-col gap-2">
-                {/* Timer Display - Show 00:00 to match project cards */}
-                <div className="text-3xl font-bold text-muted-foreground">
-                  00:00
-                </div>
-              </div>
-
-              {/* Center: Color Picker and Project Name Input */}
-              <div className="flex items-center gap-4 flex-1 mx-6">
+          <CardContent className="px-3 sm:px-4 py-3 sm:py-4">
+            <div className="flex items-center gap-2 sm:gap-4">
+              {/* Color Picker and Project Name Input */}
+              <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                 {/* Color Picker */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-9 px-4 flex items-center gap-2 whitespace-nowrap"
+                      className="h-8 sm:h-9 px-2 sm:px-4 flex items-center gap-2 whitespace-nowrap text-xs sm:text-sm flex-shrink-0"
                     >
                       <div
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: newProject.color }}
                       />
-                      Color
+                      <span className="hidden sm:inline">Color</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-48">
@@ -827,7 +840,7 @@ export default function Home() {
                 </DropdownMenu>
 
                 {/* Project Name Input */}
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <Input
                     value={newProject.name}
                     onChange={(e) => {
@@ -847,13 +860,13 @@ export default function Home() {
                       }
                     }}
                     autoFocus
-                    className="w-full text-base font-medium text-muted-foreground focus:text-foreground"
+                    className="w-full text-sm sm:text-base font-medium text-muted-foreground focus:text-foreground"
                   />
                 </div>
               </div>
 
-              {/* Right: Action Buttons */}
-              <div className="flex items-center gap-2">
+              {/* Right: Action Buttons - Same layout as save/cancel */}
+              <div className="flex gap-1 sm:gap-2">
                 <Button
                   onClick={() => {
                     setShowNewProject(false);
@@ -863,17 +876,17 @@ export default function Home() {
                   }}
                   variant="outline"
                   size="lg"
-                  className="h-12 w-12 rounded-full"
+                  className="h-10 w-10 sm:h-12 sm:w-12 rounded-full"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
                 <Button
                   type="submit"
                   onClick={addProject}
                   size="lg"
-                  className="h-12 w-12 rounded-full bg-white text-gray-600"
+                  className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-white text-gray-600"
                 >
-                  <Plus className="h-5 w-5" />
+                  <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
               </div>
             </div>
@@ -910,9 +923,12 @@ export default function Home() {
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 flex flex-col pb-28 sm:pb-32">
+    <div
+      ref={elementRef}
+      className="h-screen bg-background text-foreground px-2 sm:px-4 flex flex-col swipe-container"
+    >
       {/* Edit Button - Fixed at top right */}
-      <div className="max-w-2xl mx-auto w-full flex justify-end mb-4">
+      <div className="absolute top-4 right-4 z-10">
         <Button
           onClick={() => setEditMode(!editMode)}
           variant={editMode ? "default" : "outline"}
@@ -924,19 +940,19 @@ export default function Home() {
         </Button>
       </div>
 
-      {/* Main Content - Centered vertically */}
-      <div className="flex-1 flex items-center justify-center">
-        <div className="max-w-2xl mx-auto w-full space-y-6 sm:space-y-8">
+      {/* Main Content - Centered vertically in viewport */}
+      <div className="flex-1 flex items-center justify-center px-2 sm:px-0">
+        <div className="max-w-2xl mx-auto w-full space-y-4 sm:space-y-6 lg:space-y-8 py-0">
           {/* Current Time and Date Display */}
-          <div className="flex items-center justify-center gap-4">
-            <div className="text-base sm:text-lg font-semibold">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+            <div className="text-lg sm:text-xl lg:text-2xl font-bold">
               {currentTime.toLocaleTimeString("en-US", {
                 hour12: false,
                 hour: "2-digit",
                 minute: "2-digit",
               })}
             </div>
-            <div className="text-base sm:text-lg font-semibold text-muted-foreground">
+            <div className="text-sm sm:text-base lg:text-lg font-medium text-muted-foreground">
               {currentTime.toLocaleDateString("en-US", {
                 month: "long",
                 day: "numeric",
@@ -946,7 +962,7 @@ export default function Home() {
           </div>
 
           {/* Project Buttons */}
-          <div className="w-full space-y-3 sm:space-y-4">
+          <div className="w-full space-y-2 sm:space-y-3 lg:space-y-4">
             {renderProjectButtons()}
 
             {/* Add Project Section - Only show when not editing */}

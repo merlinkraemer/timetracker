@@ -136,6 +136,72 @@
     display: none;
   }
 
+  /* Mobile touch optimizations */
+  * {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent text selection on buttons and interactive elements */
+  button,
+  [role="button"] {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* Prevent zoom on input focus on mobile */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="url"],
+  input[type="tel"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important;
+    transform: scale(1) !important;
+    -webkit-transform: scale(1) !important;
+    -moz-transform: scale(1) !important;
+    -ms-transform: scale(1) !important;
+  }
+
+  /* Additional mobile zoom prevention */
+  @media screen and (max-width: 768px) {
+
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+      transform: scale(1) !important;
+      -webkit-transform: scale(1) !important;
+    }
+  }
+
+  /* Force no zoom on all form elements */
+  input,
+  textarea,
+  select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    border-radius: 0;
+  }
+
+  /* Specific zoom prevention for iOS */
+  @supports (-webkit-touch-callout: none) {
+
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+
+
+
   /* Ensure all interactive elements show pointer cursor */
   button,
   [role="button"],
@@ -144,6 +210,20 @@
   [data-slot*="select"],
   .cursor-pointer {
     cursor: pointer;
+  }
+
+  /* Smooth swipe navigation */
+  .swipe-container {
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Prevent horizontal scroll on mobile */
+  @media (max-width: 768px) {
+    body {
+      overflow-x: hidden;
+    }
   }
 
   /* Keep text cursor for inputs */
