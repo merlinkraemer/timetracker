@@ -121,6 +121,21 @@
     @apply bg-background text-foreground;
   }
 
+  /* Hide scrollbars across all browsers */
+  html {
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* Internet Explorer 10+ */
+  }
+
+  /* Hide scrollbars for WebKit browsers (Chrome, Safari, Edge) */
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Ensure all interactive elements show pointer cursor */
   button,
   [role="button"],

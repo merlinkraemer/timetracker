@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,18 +10,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Session } from "@/types";
-import { formatDuration, formatTime, formatDate } from "@/lib/api-storage";
+import { formatDuration, formatTime } from "@/lib/api-storage";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { DatePicker } from "@/components/ui/date-picker";
-import {
-  Calendar,
-  Dollar,
-  ChevronLeft,
-  ChevronRight,
-  Trash,
-} from "@mynaui/icons-react";
+import { ChevronLeft, ChevronRight } from "@mynaui/icons-react";
+import { Check, X, Edit, Trash, Download, FileText } from "lucide-react";
+import * as XLSX from "xlsx";
 import { FloatingNavbar } from "@/components/ui/floating-navbar";
 import { useTimeTracker } from "@/lib/context";
 
@@ -36,10 +32,9 @@ export default function History() {
       "0"
     )}`;
   });
-  const [showCashOutPopup, setShowCashOutPopup] = useState(false);
-  const [cashOutDate, setCashOutDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const [showExportPopup, setShowExportPopup] = useState(false);
+  const [exportDate, setExportDate] = useState(new Date().toISOString());
+  const [exportProject, setExportProject] = useState<string>("all");
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     startTime: "",
@@ -59,41 +54,6 @@ export default function History() {
       </div>
     );
   }
-
-  const getTotalTimeForProject = (projectName: string) => {
-    return data.sessions
-      .filter((s) => s.project === projectName && s.end)
-      .reduce((total, session) => {
-        const duration =
-          new Date(session.end!).getTime() - new Date(session.start).getTime();
-        return total + duration;
-      }, 0);
-  };
-
-  const getTotalTimeAll = () => {
-    return data.sessions
-      .filter((s) => s.end)
-      .reduce((total, session) => {
-        const duration =
-          new Date(session.end!).getTime() - new Date(session.start).getTime();
-        return total + duration;
-      }, 0);
-  };
-
-  const getTotalTimeForFilteredSessions = () => {
-    const filteredSessions =
-      selectedProject === "all"
-        ? data.sessions
-        : data.sessions.filter((s) => s.project === selectedProject);
-
-    return filteredSessions
-      .filter((s) => s.end)
-      .reduce((total, session) => {
-        const duration =
-          new Date(session.end!).getTime() - new Date(session.start).getTime();
-        return total + duration;
-      }, 0);
-  };
 
   // Filter sessions by selected month and project
   const filteredSessions = data.sessions.filter((session) => {
@@ -156,54 +116,176 @@ export default function History() {
     setCurrentMonth(`${newYear}-${String(newMonth).padStart(2, "0")}`);
   };
 
-  const cashOutSessions = (upToDate: string) => {
-    console.log("Cash out function called with date:", upToDate);
-    // Create a date object with the selected date and current time (end of day)
-    const cashOutDate = new Date(upToDate);
-    cashOutDate.setHours(23, 59, 59, 999); // Set to end of the selected day
-    console.log("Cash out date object (end of day):", cashOutDate);
+  const exportToCSV = (projectName: string) => {
+    // Filter sessions for the selected project
+    const projectSessions = data.sessions.filter(
+      (session) => session.project === projectName
+    );
 
-    const sessionsToCashOut = data.sessions.filter((session) => {
-      const sessionDate = new Date(session.start);
-      // Ensure cashedOut property exists, default to false if undefined
-      const isCashedOut = session.cashedOut || false;
-      const shouldCashOut = sessionDate <= cashOutDate && !isCashedOut;
-      console.log(
-        `Session ${session.id}: date=${sessionDate}, cashedOut=${isCashedOut}, shouldCashOut=${shouldCashOut}`
-      );
-      return shouldCashOut;
-    });
-
-    console.log("Sessions to cash out:", sessionsToCashOut);
-
-    if (sessionsToCashOut.length === 0) {
-      console.log("No sessions to cash out");
+    if (projectSessions.length === 0) {
+      alert("No sessions found for this project");
       return;
     }
 
-    if (
-      confirm(
-        `This will mark ${
-          sessionsToCashOut.length
-        } sessions as cashed out up to ${cashOutDate.toLocaleDateString()}. Continue?`
-      )
-    ) {
-      console.log("User confirmed, updating sessions...");
-      setData((prev) => {
-        const updatedSessions = prev.sessions.map((session) => {
-          const sessionDate = new Date(session.start);
-          if (sessionDate <= cashOutDate) {
-            return { ...session, cashedOut: true };
-          }
-          return session;
-        });
-        console.log("Updated sessions:", updatedSessions);
-        return {
-          ...prev,
-          sessions: updatedSessions,
-        };
-      });
+    // Create CSV content
+    const csvContent = [
+      // Header row
+      ["Date", "Start Time", "End Time", "Duration", "Description"],
+      // Data rows
+      ...projectSessions.map((session) => {
+        const startDate = new Date(session.start);
+        const endDate = session.end ? new Date(session.end) : null;
+        const duration = endDate ? endDate.getTime() - startDate.getTime() : 0;
+
+        return [
+          startDate.toLocaleDateString("de-DE", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          }),
+          startDate.toLocaleTimeString("de-DE", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          endDate
+            ? endDate.toLocaleTimeString("de-DE", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "Running",
+          formatDuration(duration),
+          session.description || "",
+        ];
+      }),
+    ];
+
+    // Convert to CSV string
+    const csvString = csvContent
+      .map((row) => row.map((cell) => `"${cell}"`).join(","))
+      .join("\n");
+
+    // Create and download file
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `${projectName.replace(/[^a-z0-9]/gi, "_")}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportAndCashOutSessions = (upToDate: string, projectName: string) => {
+    console.log(
+      "Export and cash out function called with date:",
+      upToDate,
+      "and project:",
+      projectName
+    );
+    // Create a date object with the selected date and current time (end of day)
+    const exportDate = new Date(upToDate);
+    exportDate.setHours(23, 59, 59, 999); // Set to end of the selected day
+    console.log("Export date object (end of day):", exportDate);
+
+    // Filter sessions for the specific project up to the selected date
+    const sessionsToExport = data.sessions.filter((session) => {
+      const sessionDate = new Date(session.start);
+      const isCashedOut = session.cashedOut || false;
+      const matchesProject =
+        projectName === "all" || session.project === projectName;
+      const shouldExport =
+        sessionDate <= exportDate && !isCashedOut && matchesProject;
+      console.log(
+        `Session ${session.id}: date=${sessionDate}, project=${session.project}, cashedOut=${isCashedOut}, shouldExport=${shouldExport}`
+      );
+      return shouldExport;
+    });
+
+    console.log("Sessions to export:", sessionsToExport);
+
+    if (sessionsToExport.length === 0) {
+      console.log("No sessions to export");
+      alert("No sessions found for the selected criteria");
+      return;
     }
+
+    // Create Excel workbook and worksheet
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      ["Date", "Start Time", "End Time", "Duration", "Description"],
+      ...sessionsToExport.map((session) => {
+        const startDate = new Date(session.start);
+        const endDate = session.end ? new Date(session.end) : null;
+        const duration = endDate ? endDate.getTime() - startDate.getTime() : 0;
+
+        return [
+          startDate.toLocaleDateString("de-DE", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          }),
+          startDate.toLocaleTimeString("de-DE", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          endDate
+            ? endDate.toLocaleTimeString("de-DE", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "Running",
+          formatDuration(duration),
+          session.description || "",
+        ];
+      }),
+    ]);
+
+    // Set column widths
+    worksheet["!cols"] = [
+      { width: 12 }, // Date
+      { width: 10 }, // Start Time
+      { width: 10 }, // End Time
+      { width: 12 }, // Duration
+      { width: 30 }, // Description
+    ];
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sessions");
+
+    // Create and download file
+    const projectLabel =
+      projectName === "all"
+        ? "All_Projects"
+        : projectName.replace(/[^a-z0-9]/gi, "_");
+
+    // Generate Excel file
+    XLSX.writeFile(
+      workbook,
+      `${projectLabel}_export_${exportDate.toISOString().split("T")[0]}.xlsx`
+    );
+
+    // Mark sessions as cashed out automatically
+    console.log("Marking sessions as cashed out...");
+    setData((prev) => {
+      const updatedSessions = prev.sessions.map((session) => {
+        const sessionDate = new Date(session.start);
+        const matchesProject =
+          projectName === "all" || session.project === projectName;
+        if (sessionDate <= exportDate && matchesProject) {
+          return { ...session, cashedOut: true };
+        }
+        return session;
+      });
+      console.log("Updated sessions:", updatedSessions);
+      return {
+        ...prev,
+        sessions: updatedSessions,
+      };
+    });
   };
 
   const startEditing = (session: Session) => {
@@ -292,8 +374,14 @@ export default function History() {
               <SelectContent>
                 <SelectItem value="all">All Projects</SelectItem>
                 {data.projects.map((project) => (
-                  <SelectItem key={project} value={project}>
-                    {project}
+                  <SelectItem key={project.name} value={project.name}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: project.color }}
+                      />
+                      {project.name}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -301,13 +389,13 @@ export default function History() {
           </div>
 
           <Button
-            onClick={() => setShowCashOutPopup(true)}
-            variant="destructive"
+            onClick={() => setShowExportPopup(true)}
+            variant="outline"
             size="sm"
             className="flex items-center gap-2"
           >
-            <Dollar className="w-4 h-4" />
-            <span className="hidden sm:inline">Cash Out</span>
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
         </div>
 
@@ -341,12 +429,18 @@ export default function History() {
               {/* Date Header */}
               <div className="flex justify-between items-center mb-3 sm:mb-4 px-2 sm:px-0">
                 <h3 className="text-lg font-semibold">
-                  {formatDate(new Date(date))} -{" "}
+                  {new Date(date).toLocaleDateString("de-DE", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  })}{" "}
+                  -{" "}
                   {new Date(date).toLocaleDateString("en-US", {
                     weekday: "long",
                   })}
                 </h3>
                 <div className="text-lg font-semibold text-primary">
+                  Total{" "}
                   {formatDuration(
                     groupedSessions[date].reduce((total, session) => {
                       if (session.end) {
@@ -403,175 +497,212 @@ export default function History() {
                               }`}
                             >
                               {isEditing ? (
-                                <div className="space-y-6">
-                                  {/* Project Selection */}
-                                  <div className="w-full">
-                                    <Select
-                                      value={editForm.project}
-                                      onValueChange={(value) =>
-                                        setEditForm((prev) => ({
-                                          ...prev,
-                                          project: value,
-                                        }))
-                                      }
-                                    >
-                                      <SelectTrigger className="w-full">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {data.projects.map((project) => (
-                                          <SelectItem
-                                            key={project}
-                                            value={project}
-                                          >
-                                            {project}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-
-                                  {/* Date and Time Pickers */}
-                                  <div className="space-y-6">
-                                    <DateTimePicker
-                                      date={new Date(session.start)}
-                                      onDateTimeChange={(date) => {
-                                        setEditForm((prev) => ({
-                                          ...prev,
-                                          startTime: date.toLocaleTimeString(
-                                            "en-US",
-                                            {
-                                              hour12: false,
-                                              hour: "2-digit",
-                                              minute: "2-digit",
-                                            }
-                                          ),
-                                        }));
-                                      }}
-                                      dateLabel="Start Date"
-                                      timeLabel="Start Time"
-                                      className="w-full"
-                                    />
-                                    <DateTimePicker
-                                      date={
-                                        session.end
-                                          ? new Date(session.end)
-                                          : new Date()
-                                      }
-                                      onDateTimeChange={(date) => {
-                                        setEditForm((prev) => ({
-                                          ...prev,
-                                          endTime: date.toLocaleTimeString(
-                                            "en-US",
-                                            {
-                                              hour12: false,
-                                              hour: "2-digit",
-                                              minute: "2-digit",
-                                            }
-                                          ),
-                                        }));
-                                      }}
-                                      dateLabel="End Date"
-                                      timeLabel="End Time"
-                                      className="w-full"
-                                    />
-                                  </div>
-
-                                  {/* Description */}
-                                  <div className="w-full">
-                                    <Input
-                                      value={editForm.description}
-                                      onChange={(e) =>
-                                        setEditForm((prev) => ({
-                                          ...prev,
-                                          description: e.target.value,
-                                        }))
-                                      }
-                                      placeholder="What did you work on?"
-                                      className="w-full"
-                                    />
-                                  </div>
-
-                                  {/* Action Buttons */}
-                                  <div className="flex gap-3 pt-2 w-full">
-                                    <Button
-                                      onClick={() => saveEdit(session.id)}
-                                      className="flex-1"
-                                    >
-                                      Save
-                                    </Button>
-                                    <Button
-                                      onClick={cancelEdit}
-                                      variant="outline"
-                                      className="flex-1"
-                                    >
-                                      Cancel
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="space-y-2">
-                                  {/* Date and Duration */}
+                                <div className="flex flex-col gap-4">
+                                  {/* Top Row: Time and Duration */}
                                   <div className="flex items-center justify-between">
-                                    <div className="text-sm font-medium text-muted-foreground">
-                                      {new Date(
-                                        session.start
-                                      ).toLocaleDateString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                        weekday: "short",
-                                      })}
+                                    {/* Left: Start/Stop Time - Editable */}
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        value={
+                                          editForm.startTime ||
+                                          formatTime(new Date(session.start))
+                                        }
+                                        onChange={(e) =>
+                                          setEditForm((prev) => ({
+                                            ...prev,
+                                            startTime: e.target.value,
+                                          }))
+                                        }
+                                        className="text-2xl font-bold text-primary w-20 text-center border-none p-0 bg-transparent"
+                                        placeholder="HH:MM"
+                                      />
+                                      <span className="text-2xl font-bold text-primary">
+                                        -
+                                      </span>
+                                      <Input
+                                        value={
+                                          editForm.endTime ||
+                                          formatTime(new Date(session.end!))
+                                        }
+                                        onChange={(e) =>
+                                          setEditForm((prev) => ({
+                                            ...prev,
+                                            endTime: e.target.value,
+                                          }))
+                                        }
+                                        className="text-2xl font-bold text-primary w-20 text-center border-none p-0 bg-transparent"
+                                        placeholder="HH:MM"
+                                      />
                                     </div>
-                                    <div className="text-primary font-bold text-base">
+
+                                    {/* Right: Duration - Calculated */}
+                                    <div className="text-2xl font-bold text-primary">
                                       {formatDuration(duration)}
                                     </div>
                                   </div>
 
-                                  {/* Project and Cashed Out Badge */}
-                                  <div className="flex items-center gap-2">
-                                    <div className="text-base font-semibold text-primary">
-                                      {session.project}
+                                  {/* Separator between Time and Project */}
+                                  <div className="h-px bg-border w-full"></div>
+
+                                  {/* Project and Description Group */}
+                                  <div className="space-y-3">
+                                    {/* Project Name with Color Tag - Editable */}
+                                    <div className="flex items-center gap-3">
+                                      <Select
+                                        value={
+                                          editForm.project || session.project
+                                        }
+                                        onValueChange={(value) =>
+                                          setEditForm((prev) => ({
+                                            ...prev,
+                                            project: value,
+                                          }))
+                                        }
+                                      >
+                                        <SelectTrigger className="border-none p-0 bg-transparent text-base font-medium text-foreground px-3">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {data.projects.map((project) => (
+                                            <SelectItem
+                                              key={project.name}
+                                              value={project.name}
+                                            >
+                                              <div className="flex items-center gap-2">
+                                                <div
+                                                  className="w-3 h-3 rounded-full"
+                                                  style={{
+                                                    backgroundColor:
+                                                      project.color,
+                                                  }}
+                                                />
+                                                {project.name}
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      {(session.cashedOut || false) && (
+                                        <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
+                                          Cashed Out
+                                        </span>
+                                      )}
                                     </div>
-                                    {(session.cashedOut || false) && (
-                                      <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
-                                        Cashed Out
-                                      </span>
-                                    )}
+
+                                    {/* Description - Editable */}
+                                    <div>
+                                      <Input
+                                        value={
+                                          editForm.description ||
+                                          session.description ||
+                                          ""
+                                        }
+                                        onChange={(e) =>
+                                          setEditForm((prev) => ({
+                                            ...prev,
+                                            description: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Add description..."
+                                        className="text-sm text-muted-foreground max-w-md border-none px-2 bg-transparent"
+                                      />
+                                    </div>
                                   </div>
 
-                                  {/* Time Range and Action Buttons */}
+                                  {/* Bottom: Action Buttons */}
+                                  <div className="flex justify-end">
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        onClick={cancelEdit}
+                                        variant="outline"
+                                        size="lg"
+                                        className="h-12 w-12 rounded-full"
+                                      >
+                                        <X className="h-5 w-5" />
+                                      </Button>
+                                      <Button
+                                        onClick={() => saveEdit(session.id)}
+                                        size="lg"
+                                        className="h-12 w-12 rounded-full"
+                                      >
+                                        <Check className="h-5 w-5" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-4">
+                                  {/* Top Row: Time and Duration */}
                                   <div className="flex items-center justify-between">
-                                    <div className="text-sm text-foreground font-medium">
+                                    {/* Left: Start/Stop Time */}
+                                    <div className="text-2xl font-bold text-primary">
                                       {formatTime(new Date(session.start))} -{" "}
                                       {formatTime(new Date(session.end!))}
                                     </div>
-                                    <div className="flex gap-2">
+
+                                    {/* Right: Duration */}
+                                    <div className="text-2xl font-bold text-primary">
+                                      {formatDuration(duration)}
+                                    </div>
+                                  </div>
+
+                                  {/* Separator between Time and Project */}
+                                  <div className="h-px bg-border w-full"></div>
+
+                                  {/* Project and Description Group */}
+                                  <div className="space-y-2">
+                                    {/* Project Name with Color Tag - Heading */}
+                                    <div className="flex items-center gap-3">
+                                      <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{
+                                          backgroundColor:
+                                            data.projects.find(
+                                              (p) => p.name === session.project
+                                            )?.color || "#3B82F6",
+                                        }}
+                                      />
+                                      <div className="text-base font-medium text-foreground">
+                                        {session.project}
+                                      </div>
+                                      {(session.cashedOut || false) && (
+                                        <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
+                                          Cashed Out
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Description - Body Text */}
+                                    {session.description && (
+                                      <div className="text-sm text-muted-foreground max-w-xs">
+                                        {session.description}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Bottom: Action Buttons */}
+                                  <div className="flex justify-end">
+                                    <div className="flex items-center gap-2">
                                       <Button
                                         onClick={() => startEditing(session)}
                                         variant="outline"
-                                        size="sm"
+                                        size="lg"
+                                        className="h-12 w-12 rounded-full"
                                       >
-                                        Edit
+                                        <Edit className="h-5 w-5" />
                                       </Button>
                                       <Button
                                         onClick={() =>
                                           deleteSession(session.id)
                                         }
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-destructive hover:text-destructive"
+                                        variant="outline"
+                                        size="lg"
+                                        className="h-12 w-12 rounded-full text-destructive hover:text-destructive"
                                       >
-                                        <Trash className="w-4 h-4" />
+                                        <Trash className="h-5 w-5" />
                                       </Button>
                                     </div>
                                   </div>
-
-                                  {/* Description */}
-                                  {session.description && (
-                                    <div className="text-sm text-muted-foreground">
-                                      {session.description}
-                                    </div>
-                                  )}
                                 </div>
                               )}
                             </CardContent>
@@ -628,176 +759,214 @@ export default function History() {
                               <Card key={session.id} className="opacity-60">
                                 <CardContent className="p-4 bg-muted/5 text-muted-foreground">
                                   {isEditing ? (
-                                    <div className="space-y-6">
-                                      {/* Project Selection */}
-                                      <div className="w-full">
-                                        <Select
-                                          value={editForm.project}
-                                          onValueChange={(value) =>
-                                            setEditForm((prev) => ({
-                                              ...prev,
-                                              project: value,
-                                            }))
-                                          }
-                                        >
-                                          <SelectTrigger className="w-full">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {data.projects.map((project) => (
-                                              <SelectItem
-                                                key={project}
-                                                value={project}
-                                              >
-                                                {project}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-
-                                      {/* Date and Time Pickers */}
-                                      <div className="space-y-6">
-                                        <DateTimePicker
-                                          date={new Date(session.start)}
-                                          onDateTimeChange={(date) => {
-                                            setEditForm((prev) => ({
-                                              ...prev,
-                                              startTime:
-                                                date.toLocaleTimeString(
-                                                  "en-US",
-                                                  {
-                                                    hour12: false,
-                                                    hour: "2-digit",
-                                                    minute: "2-digit",
-                                                  }
-                                                ),
-                                            }));
-                                          }}
-                                          dateLabel="Start Date"
-                                          timeLabel="Start Time"
-                                          className="w-full"
-                                        />
-                                        <DateTimePicker
-                                          date={
-                                            session.end
-                                              ? new Date(session.end)
-                                              : new Date()
-                                          }
-                                          onDateTimeChange={(date) => {
-                                            setEditForm((prev) => ({
-                                              ...prev,
-                                              endTime: date.toLocaleTimeString(
-                                                "en-US",
-                                                {
-                                                  hour12: false,
-                                                  hour: "2-digit",
-                                                  minute: "2-digit",
-                                                }
-                                              ),
-                                            }));
-                                          }}
-                                          dateLabel="End Date"
-                                          timeLabel="End Time"
-                                          className="w-full"
-                                        />
-                                      </div>
-
-                                      {/* Description */}
-                                      <div className="w-full">
-                                        <Input
-                                          value={editForm.description}
-                                          onChange={(e) =>
-                                            setEditForm((prev) => ({
-                                              ...prev,
-                                              description: e.target.value,
-                                            }))
-                                          }
-                                          placeholder="What did you work on?"
-                                          className="w-full"
-                                        />
-                                      </div>
-
-                                      {/* Action Buttons */}
-                                      <div className="flex gap-3 pt-2 w-full">
-                                        <Button
-                                          onClick={() => saveEdit(session.id)}
-                                          className="flex-1"
-                                        >
-                                          Save
-                                        </Button>
-                                        <Button
-                                          onClick={cancelEdit}
-                                          variant="outline"
-                                          className="flex-1"
-                                        >
-                                          Cancel
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      {/* Date and Duration */}
+                                    <div className="flex flex-col gap-4">
+                                      {/* Top Row: Time and Duration */}
                                       <div className="flex items-center justify-between">
-                                        <div className="text-sm font-medium text-muted-foreground">
-                                          {new Date(
-                                            session.start
-                                          ).toLocaleDateString("en-US", {
-                                            month: "short",
-                                            day: "numeric",
-                                            weekday: "short",
-                                          })}
+                                        {/* Left: Start/Stop Time - Editable */}
+                                        <div className="flex items-center gap-2">
+                                          <Input
+                                            value={
+                                              editForm.startTime ||
+                                              formatTime(
+                                                new Date(session.start)
+                                              )
+                                            }
+                                            onChange={(e) =>
+                                              setEditForm((prev) => ({
+                                                ...prev,
+                                                startTime: e.target.value,
+                                              }))
+                                            }
+                                            className="text-2xl font-bold text-primary w-20 text-center border-none p-0 bg-transparent"
+                                            placeholder="HH:MM"
+                                          />
+                                          <span className="text-2xl font-bold text-primary">
+                                            -
+                                          </span>
+                                          <Input
+                                            value={
+                                              editForm.endTime ||
+                                              formatTime(new Date(session.end!))
+                                            }
+                                            onChange={(e) =>
+                                              setEditForm((prev) => ({
+                                                ...prev,
+                                                endTime: e.target.value,
+                                              }))
+                                            }
+                                            className="text-2xl font-bold text-primary w-20 text-center border-none p-0 bg-transparent"
+                                            placeholder="HH:MM"
+                                          />
                                         </div>
-                                        <div className="text-primary font-bold text-base">
+
+                                        {/* Right: Duration - Calculated */}
+                                        <div className="text-2xl font-bold text-primary">
                                           {formatDuration(duration)}
                                         </div>
                                       </div>
 
-                                      {/* Project and Cashed Out Badge */}
-                                      <div className="flex items-center gap-2">
-                                        <div className="text-base font-semibold text-primary">
-                                          {session.project}
+                                      {/* Separator between Time and Project */}
+                                      <div className="h-px bg-border w-full"></div>
+
+                                      {/* Project and Description Group */}
+                                      <div className="space-y-3">
+                                        {/* Project Name with Color Tag - Editable */}
+                                        <div className="flex items-center gap-3">
+                                          <Select
+                                            value={
+                                              editForm.project ||
+                                              session.project
+                                            }
+                                            onValueChange={(value) =>
+                                              setEditForm((prev) => ({
+                                                ...prev,
+                                                project: value,
+                                              }))
+                                            }
+                                          >
+                                            <SelectTrigger className="border-none p-0 bg-transparent text-base font-medium text-foreground px-3">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {data.projects.map((project) => (
+                                                <SelectItem
+                                                  key={project.name}
+                                                  value={project.name}
+                                                >
+                                                  <div className="flex items-center gap-2">
+                                                    <div
+                                                      className="w-3 h-3 rounded-full"
+                                                      style={{
+                                                        backgroundColor:
+                                                          project.color,
+                                                      }}
+                                                    />
+                                                    {project.name}
+                                                  </div>
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                          <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
+                                            Cashed Out
+                                          </span>
                                         </div>
-                                        <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
-                                          Cashed Out
-                                        </span>
+
+                                        {/* Description - Editable */}
+                                        <div>
+                                          <Input
+                                            value={
+                                              editForm.description ||
+                                              session.description ||
+                                              ""
+                                            }
+                                            placeholder="Add description..."
+                                            onChange={(e) =>
+                                              setEditForm((prev) => ({
+                                                ...prev,
+                                                description: e.target.value,
+                                              }))
+                                            }
+                                            className="text-sm text-muted-foreground max-w-md border-none px-2 bg-transparent"
+                                          />
+                                        </div>
                                       </div>
 
-                                      {/* Time Range and Action Buttons */}
+                                      {/* Bottom: Action Buttons */}
+                                      <div className="flex justify-end">
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            onClick={cancelEdit}
+                                            variant="outline"
+                                            size="lg"
+                                            className="h-12 w-12 rounded-full"
+                                          >
+                                            <X className="h-5 w-5" />
+                                          </Button>
+                                          <Button
+                                            onClick={() => saveEdit(session.id)}
+                                            size="lg"
+                                            className="h-12 w-12 rounded-full"
+                                          >
+                                            <Check className="h-5 w-5" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col gap-4">
+                                      {/* Top Row: Time and Duration */}
                                       <div className="flex items-center justify-between">
-                                        <div className="text-sm text-foreground font-medium">
+                                        {/* Left: Start/Stop Time */}
+                                        <div className="text-2xl font-bold text-primary">
                                           {formatTime(new Date(session.start))}{" "}
                                           - {formatTime(new Date(session.end!))}
                                         </div>
-                                        <div className="flex gap-2">
+
+                                        {/* Right: Duration */}
+                                        <div className="text-2xl font-bold text-primary">
+                                          {formatDuration(duration)}
+                                        </div>
+                                      </div>
+
+                                      {/* Separator between Time and Project */}
+                                      <div className="h-px bg-border w-full"></div>
+
+                                      {/* Project and Description Group */}
+                                      <div className="space-y-2">
+                                        {/* Project Name with Color Tag - Heading */}
+                                        <div className="flex items-center gap-3">
+                                          <div
+                                            className="w-3 h-3 rounded-full"
+                                            style={{
+                                              backgroundColor:
+                                                data.projects.find(
+                                                  (p) =>
+                                                    p.name === session.project
+                                                )?.color || "#3B82F6",
+                                            }}
+                                          />
+                                          <div className="text-base font-medium text-foreground">
+                                            {session.project}
+                                          </div>
+                                          <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
+                                            Cashed Out
+                                          </span>
+                                        </div>
+
+                                        {/* Description - Body Text */}
+                                        {session.description && (
+                                          <div className="text-sm text-muted-foreground max-w-xs">
+                                            {session.description}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Bottom: Action Buttons */}
+                                      <div className="flex justify-end">
+                                        <div className="flex items-center gap-2">
                                           <Button
                                             onClick={() =>
                                               startEditing(session)
                                             }
                                             variant="outline"
-                                            size="sm"
+                                            size="lg"
+                                            className="h-12 w-12 rounded-full"
                                           >
-                                            Edit
+                                            <Edit className="h-5 w-5" />
                                           </Button>
                                           <Button
                                             onClick={() =>
                                               deleteSession(session.id)
                                             }
-                                            variant="ghost"
-                                            size="sm"
-                                            className="text-destructive hover:text-destructive"
+                                            variant="outline"
+                                            size="lg"
+                                            className="h-12 w-12 rounded-full text-destructive hover:text-destructive"
                                           >
-                                            <Trash className="w-4 h-4" />
+                                            <Trash className="h-5 w-5" />
                                           </Button>
                                         </div>
                                       </div>
-
-                                      {/* Description */}
-                                      {session.description && (
-                                        <div className="text-sm text-muted-foreground">
-                                          {session.description}
-                                        </div>
-                                      )}
                                     </div>
                                   )}
                                 </CardContent>
@@ -828,39 +997,65 @@ export default function History() {
           </Card>
         )}
 
-        {/* Cash Out Popup */}
-        {showCashOutPopup && (
+        {/* Export and Cash Out Popup */}
+        {showExportPopup && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4">
-              <h3 className="text-lg font-semibold mb-4">Cash Out Sessions</h3>
+              <h3 className="text-lg font-semibold mb-4">Export Sessions</h3>
               <div className="space-y-4">
                 <div>
-                  <DatePicker
-                    date={new Date(cashOutDate)}
-                    onDateChange={(date) =>
-                      setCashOutDate(date.toISOString().split("T")[0])
+                  <label className="text-sm font-medium mb-2 block">
+                    Project to export:
+                  </label>
+                  <Select
+                    value={exportProject}
+                    onValueChange={setExportProject}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Projects</SelectItem>
+                      {data.projects.map((project) => (
+                        <SelectItem key={project.name} value={project.name}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: project.color }}
+                            />
+                            {project.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <DateTimePicker
+                    date={new Date(exportDate)}
+                    onDateTimeChange={(date) =>
+                      setExportDate(date.toISOString())
                     }
-                    label="Mark sessions as cashed out up to:"
+                    dateLabel="Export sessions up to:"
                   />
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  This will mark all sessions up to the selected date as cashed
-                  out. Cashed out sessions will remain visible but marked as
-                  paid.
+                  This will export all sessions up to the selected date for the
+                  selected project as an Excel file.
                 </div>
                 <div className="flex gap-2">
                   <Button
                     onClick={() => {
-                      cashOutSessions(cashOutDate);
-                      setShowCashOutPopup(false);
+                      exportAndCashOutSessions(exportDate, exportProject);
+                      setShowExportPopup(false);
                     }}
-                    variant="destructive"
+                    variant="default"
                     className="flex-1"
                   >
-                    Cash Out
+                    Export
                   </Button>
                   <Button
-                    onClick={() => setShowCashOutPopup(false)}
+                    onClick={() => setShowExportPopup(false)}
                     variant="outline"
                     className="flex-1"
                   >

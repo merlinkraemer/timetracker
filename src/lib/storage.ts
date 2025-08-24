@@ -4,7 +4,11 @@ const STORAGE_KEY = "timetracker-data";
 
 const defaultData: TimeTrackerData = {
   sessions: [],
-  projects: ["General", "Development", "Meeting"],
+  projects: [
+    { name: "General", color: "#3B82F6" },
+    { name: "Development", color: "#10B981" },
+    { name: "Meeting", color: "#F59E0B" },
+  ],
 };
 
 export const loadData = (): TimeTrackerData => {

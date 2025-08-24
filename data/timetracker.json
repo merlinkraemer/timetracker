@@ -1,22 +1,13 @@
 {
-  "sessions": [
+  "sessions": [],
+  "projects": [
     {
-      "id": "mepxjifr4sue3qamog9",
-      "start": "2025-08-24T16:55:54.272Z",
-      "end": "2025-08-24T16:55:54.903Z",
-      "project": "test",
-      "description": ""
+      "name": "Skydive Events",
+      "color": "#EF4444"
     },
     {
-      "id": "mepxgnzbaeecklpu9lj",
-      "start": "2025-08-24T16:53:40.970Z",
-      "end": "2025-08-24T16:53:42.119Z",
-      "project": "test",
-      "description": ""
+      "name": "SUB",
+      "color": "#3B82F6"
     }
-  ],
-  "projects": [
-    "test",
-    "test2"
   ]
 }

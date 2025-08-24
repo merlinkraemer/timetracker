@@ -21,7 +21,7 @@ async function loadDataFromFile(): Promise<TimeTrackerData> {
     await ensureDataDir();
     const data = await fs.readFile(DATA_FILE, "utf-8");
     return JSON.parse(data);
-  } catch (error) {
+  } catch {
     // Return default data if file doesn't exist
     return {
       sessions: [],

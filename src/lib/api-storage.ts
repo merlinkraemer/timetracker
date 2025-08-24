@@ -1,4 +1,4 @@
-import { TimeTrackerData, Session, CurrentSession } from "@/types";
+import { TimeTrackerData, CurrentSession } from "@/types";
 
 const API_BASE = "/api/data";
 

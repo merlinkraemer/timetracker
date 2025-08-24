@@ -72,9 +72,11 @@ export function DateTimePicker({
   return (
     <div className={`flex gap-3 w-full ${className || ""}`}>
       <div className="flex flex-col gap-3 flex-1">
-        <Label htmlFor="date-picker" className="px-1">
-          {dateLabel}
-        </Label>
+        {dateLabel && (
+          <Label htmlFor="date-picker" className="px-1">
+            {dateLabel}
+          </Label>
+        )}
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -97,9 +99,11 @@ export function DateTimePicker({
         </Popover>
       </div>
       <div className="flex flex-col gap-3 flex-1">
-        <Label htmlFor="time-picker" className="px-1">
-          {timeLabel}
-        </Label>
+        {timeLabel && (
+          <Label htmlFor="time-picker" className="px-1">
+            {timeLabel}
+          </Label>
+        )}
         <Input
           type="time"
           id="time-picker"
