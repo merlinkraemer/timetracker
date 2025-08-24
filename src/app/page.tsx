@@ -280,15 +280,15 @@ export default function Home() {
       <div className="space-y-6">
         <Card>
           <CardContent className="p-6 space-y-6">
-            {/* Project Selection */}
-            <div className="w-full">
+            {/* Project Selection and Add Button */}
+            <div className="flex gap-2 w-full">
               <Select
                 value={editingSession.project}
                 onValueChange={(value) =>
                   setEditingSession({ ...editingSession, project: value })
                 }
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="flex-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -299,7 +299,44 @@ export default function Home() {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                onClick={() => setShowNewProject(true)}
+                variant="outline"
+                className="px-3"
+              >
+                +
+              </Button>
             </div>
+
+            {/* New Project Input - Only visible when adding */}
+            {showNewProject && (
+              <>
+                <Input
+                  value={newProject}
+                  onChange={(e) => setNewProject(e.target.value)}
+                  placeholder="New project name"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") addProject();
+                    if (e.key === "Escape") setShowNewProject(false);
+                  }}
+                  autoFocus
+                  className="w-full"
+                />
+                <div className="flex gap-3">
+                  <Button onClick={addProject} size="sm" className="flex-1">
+                    Add Project
+                  </Button>
+                  <Button
+                    onClick={() => setShowNewProject(false)}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            )}
 
             {/* Date and Time Pickers */}
             <div className="space-y-6">
