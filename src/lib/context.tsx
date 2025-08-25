@@ -11,7 +11,6 @@ import React, {
   useRef,
 } from "react";
 import { TimeTrackerData, CurrentSession, Session } from "@/types";
-import { syncService } from "@/lib/sync-service";
 import { usePathname } from "next/navigation";
 
 interface TimeTrackerContextType {
@@ -60,7 +59,7 @@ export function TimeTrackerProvider({ children }: { children: ReactNode }) {
   const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null);
   const [totalPausedTime, setTotalPausedTime] = useState(0);
   
-  // Memoize the refresh function to prevent unnecessary re-renders
+  // Simple refresh function that just reloads from localStorage
   const refreshData = useCallback(async () => {
     console.log("Context: Refreshing data from localStorage...");
     setHasLoadedData(false);
@@ -136,7 +135,13 @@ export function TimeTrackerProvider({ children }: { children: ReactNode }) {
               setPauseStartTime(savedSession.pauseStartTime ? new Date(savedSession.pauseStartTime) : null);
               setTotalPausedTime(savedSession.totalPausedTime || 0);
               
-              console.log("Context: Restored session and timer state:", restoredSession);
+              console.log("Context: Restored session and timer state:", {
+                session: restoredSession,
+                isPaused: savedSession.isPaused,
+                pauseStartTime: savedSession.pauseStartTime,
+                totalPausedTime: savedSession.totalPausedTime,
+                rawSavedSession: savedSession
+              });
             } else {
               // Clear old session
               localStorage.removeItem(sessionKey);

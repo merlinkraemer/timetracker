@@ -333,40 +333,27 @@ export default function History() {
     // Set saving flag to prevent context from overriding our changes
     setIsSaving(true);
 
-    // Save to server in the background
-    const saveToServer = async () => {
-      try {
-        const { syncService } = await import('@/lib/sync-service');
-        
-        const updatedData = {
-          projects: data.projects,
-          sessions: updatedSessions,
-        };
-        
-        const result = await syncService.saveData(updatedData);
-        if (result.success) {
-          console.log("Session edit saved to server successfully");
-          
-          // Ensure context state is fully updated
-          setData((prev) => ({
-            ...prev,
-            sessions: updatedSessions,
-          }));
-        } else {
-          console.error("Failed to save session edit to server:", result.error);
-          // Optionally show error message to user
-        }
-      } catch (error) {
-        console.error("Error saving session edit to server:", error);
-        // Optionally show error message to user
-      } finally {
-        // Clear saving flag after save completes
-        setIsSaving(false);
-      }
-    };
-
-    // Execute the save in the background
-    saveToServer();
+    // Save to localStorage instead of server
+    try {
+      const updatedData = {
+        ...data,
+        sessions: updatedSessions,
+      };
+      
+      // Save to localStorage
+      localStorage.setItem('timeTrackerData', JSON.stringify(updatedData));
+      console.log("Session edit saved to localStorage successfully");
+      
+      // Update context state
+      setData(updatedData);
+      
+    } catch (error) {
+      console.error("Error saving session edit to localStorage:", error);
+      // Optionally show error message to user
+    } finally {
+      // Clear saving flag after save completes
+      setIsSaving(false);
+    }
   };
 
   const cancelEdit = () => {
@@ -397,27 +384,20 @@ export default function History() {
         sessions: updatedSessions,
       });
 
-      // Save to server using sync service
-      const saveToServer = async () => {
-        try {
-          const { syncService } = await import('@/lib/sync-service');
-          const updatedData = {
-            ...data,
-            sessions: updatedSessions,
-          };
-          
-          const result = await syncService.saveData(updatedData);
-          if (result.success) {
-            console.log("Session deletion saved to server successfully");
-          } else {
-            console.error("Failed to save session deletion to server:", result.error);
-          }
-        } catch (error) {
-          console.error("Error saving session deletion to server:", error);
-        }
-      };
-
-      saveToServer();
+      // Save to localStorage instead of server
+      try {
+        const updatedData = {
+          ...data,
+          sessions: updatedSessions,
+        };
+        
+        // Save to localStorage
+        localStorage.setItem('timeTrackerData', JSON.stringify(updatedData));
+        console.log("Session deletion saved to localStorage successfully");
+        
+      } catch (error) {
+        console.error("Error saving session deletion to localStorage:", error);
+      }
     }
   };
 
