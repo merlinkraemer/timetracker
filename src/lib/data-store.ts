@@ -11,11 +11,11 @@ interface DataWithMetadata extends TimeTrackerData {
 
 class DataStore {
   private static instance: DataStore;
-  private readonly DATA_DIR = process.env.NODE_ENV === 'production' ? '/app/data' : './data';
-  private readonly LOCK_FILE = process.env.NODE_ENV === 'production' ? '/app/data/.lock' : './data/.lock';
+  private readonly DATA_DIR = process.env.NODE_ENV === 'production' ? '/app/data' : process.cwd() + '/data';
+  private readonly LOCK_FILE = process.env.NODE_ENV === 'production' ? '/app/data/.lock' : process.cwd() + '/data/.lock';
   private readonly USER_DATA_FILE = (userId: string) => process.env.NODE_ENV === 'production' 
     ? `/app/data/data_${userId}.json` 
-    : `./data/data_${userId}.json`;
+    : `${process.cwd()}/data/data_${userId}.json`;
   private readonly CLIENT_TIMEOUT = 30000; // 30 seconds
 
   private constructor() {

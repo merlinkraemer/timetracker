@@ -11,6 +11,7 @@ import React, {
   useRef,
 } from "react";
 import { TimeTrackerData, CurrentSession, Session } from "@/types";
+import { syncService } from "@/lib/sync-service";
 import { usePathname } from "next/navigation";
 
 interface TimeTrackerContextType {
@@ -59,11 +60,26 @@ export function TimeTrackerProvider({ children }: { children: ReactNode }) {
   const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null);
   const [totalPausedTime, setTotalPausedTime] = useState(0);
   
-  // Simple refresh function that just reloads from localStorage
+  // Refresh data from server
   const refreshData = useCallback(async () => {
-    console.log("Context: Refreshing data from localStorage...");
-    setHasLoadedData(false);
-    setIsInitialLoad(true);
+    try {
+      setIsLoading(true);
+      setSyncStatus('syncing');
+      
+      const result = await syncService.loadData();
+      if (result.success && result.data) {
+        setData(result.data);
+        syncService.setCurrentVersion(result.version || 0);
+        setSyncStatus('synced');
+      } else {
+        setSyncStatus('error');
+      }
+    } catch (error) {
+      console.error("Failed to refresh data:", error);
+      setSyncStatus('error');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   // Load data on mount and pathname change
@@ -76,114 +92,84 @@ export function TimeTrackerProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Don't load data if we're on the login page
-    if (pathname === '/login') {
-      console.log("Context: On login page, skipping data load");
-      setIsLoading(false);
-      return;
-    }
-
     const loadDataAsync = async () => {
       try {
         console.log("Context: Starting to load data...");
         setIsLoading(true);
         setSyncStatus('syncing');
         
-        // Simple localStorage-based data loading
-        try {
-          // Load main data
-          const dataKey = 'timeTrackerData';
-          const dataString = localStorage.getItem(dataKey);
-          if (dataString) {
-            const savedData = JSON.parse(dataString);
-            console.log("Context: Loaded data from localStorage:", savedData);
-            setData(savedData);
-          } else {
-            // Set default data if nothing saved
-            const defaultData = {
-              sessions: [],
-              projects: [
-                { name: "General", color: "#3B82F6" },
-                { name: "Development", color: "#10B981" },
-                { name: "Meeting", color: "#F59E0B" },
-              ],
-            };
-            setData(defaultData);
-            localStorage.setItem(dataKey, JSON.stringify(defaultData));
-            console.log("Context: Set default data");
-          }
+        // Don't load data if we're on the login page
+        if (pathname === '/login') {
+          console.log("Context: On login page, skipping data load");
+          setIsLoading(false);
+          return;
+        }
+        
+        // First check if user is authenticated
+        const authCheck = await fetch('/api/data', { method: 'HEAD' });
+        if (!authCheck.ok) {
+          console.log("Context: User not authenticated, redirecting to login");
+          // User is not authenticated, redirect to login
+          window.location.href = '/login';
+          return;
+        }
+        
+        // Load data from server
+        const result = await syncService.loadData();
+        if (result.success && result.data) {
+          console.log("Context: Data loaded successfully from server:", result.data);
+          setData(result.data);
+          syncService.setCurrentVersion(result.version || 0);
+          setHasLoadedData(true);
 
-          // Load current session and timer state
-          const sessionKey = 'currentSession';
-          const sessionString = localStorage.getItem(sessionKey);
-          if (sessionString) {
-            const savedSession = JSON.parse(sessionString);
-            const sessionStart = new Date(savedSession.start);
+          // Restore current session from server if it exists
+          if (result.data.currentSession) {
+            const session = result.data.currentSession;
+            // Check if the session is still valid (not older than 24 hours)
+            const sessionStart = new Date(session.start);
             const now = new Date();
-            
-            // Check if session is recent (within last 24 hours)
             if (now.getTime() - sessionStart.getTime() < 24 * 60 * 60 * 1000) {
+              // Convert start back to Date object for proper functionality
               const restoredSession: CurrentSession = {
                 start: sessionStart,
-                project: savedSession.project,
-                description: savedSession.description || "",
+                project: session.project,
+                description: session.description || "",
                 elapsed: now.getTime() - sessionStart.getTime(),
               };
-              
+              console.log("Context: Restored current session from server:", restoredSession);
               setCurrentSession(restoredSession);
-              setIsPaused(savedSession.isPaused || false);
-              setPauseStartTime(savedSession.pauseStartTime ? new Date(savedSession.pauseStartTime) : null);
-              setTotalPausedTime(savedSession.totalPausedTime || 0);
               
-              console.log("Context: Restored session and timer state:", {
-                session: restoredSession,
-                isPaused: savedSession.isPaused,
-                pauseStartTime: savedSession.pauseStartTime,
-                totalPausedTime: savedSession.totalPausedTime,
-                rawSavedSession: savedSession
-              });
+              // Restore timer state from server
+              if ((session as Session & { _timerState?: { isPaused: boolean; pauseStartTime?: string; totalPausedTime: number } })._timerState) {
+                const timerState = (session as Session & { _timerState: { isPaused: boolean; pauseStartTime?: string; totalPausedTime: number } })._timerState;
+                setIsPaused(timerState.isPaused || false);
+                setPauseStartTime(timerState.pauseStartTime ? new Date(timerState.pauseStartTime) : null);
+                setTotalPausedTime(timerState.totalPausedTime || 0);
+                console.log("Context: Restored timer state from server:", timerState);
+              } else {
+                // No timer state on server, assume running
+                setIsPaused(false);
+                setPauseStartTime(null);
+                setTotalPausedTime(0);
+                console.log("Context: No timer state on server, assuming running");
+              }
             } else {
-              // Clear old session
-              localStorage.removeItem(sessionKey);
-              console.log("Context: Cleared old session");
+              // Session is too old, clear it from server
+              console.log("Context: Session too old, clearing from server");
+              await syncService.clearCurrentSession();
             }
           }
           
-          setHasLoadedData(true);
           setSyncStatus('synced');
           setIsInitialLoad(false);
           
-        } catch (localStorageError) {
-          console.warn("Failed to load from localStorage:", localStorageError);
-          // Set default data on error
-          setData({
-            sessions: [],
-            projects: [
-              { name: "General", color: "#3B82F6" },
-              { name: "Development", color: "#10B981" },
-              { name: "Meeting", color: "#F59E0B" },
-            ],
-          });
-          setHasLoadedData(true);
-          setSyncStatus('synced');
-          setIsInitialLoad(false);
+        } else {
+          console.error("Failed to load data from server:", result.error);
+          setSyncStatus('error');
         }
-        
       } catch (error) {
         console.error("Failed to load data:", error);
         setSyncStatus('error');
-        // Set default data on error
-        setData({
-          sessions: [],
-          projects: [
-            { name: "General", color: "#3B82F6" },
-            { name: "Development", color: "#10B981" },
-            { name: "Meeting", color: "#F59E0B" },
-          ],
-        });
-        setHasLoadedData(true);
-        setSyncStatus('error');
-        setIsInitialLoad(false);
       } finally {
         console.log("Context: Setting loading to false");
         setIsLoading(false);
@@ -195,11 +181,17 @@ export function TimeTrackerProvider({ children }: { children: ReactNode }) {
 
   // Set up data change callback for real-time sync
   useEffect(() => {
-    // Disable server-side sync for now, using localStorage only
-    console.log("Context: Using localStorage-only approach, server sync disabled");
-    
+    syncService.setOnDataChange((newData: TimeTrackerData) => {
+      console.log("Context: Received data update from server:", newData);
+      setData(newData);
+      setSyncStatus('synced');
+    });
+
+    // Start polling for real-time updates
+    syncService.startPolling();
+
     return () => {
-      // Cleanup if needed
+      syncService.stopPolling();
     };
   }, []);
 
@@ -394,55 +386,70 @@ export function TimeTrackerProvider({ children }: { children: ReactNode }) {
   };
   */
 
-  // Save data changes to localStorage
+  // Save data changes to server for real-time sync
   useEffect(() => {
     if (!hasLoadedData || isInitialLoad) return;
     
-    const saveData = () => {
+    const saveData = async () => {
       try {
-        localStorage.setItem('timeTrackerData', JSON.stringify(data));
-        console.log("Data saved to localStorage:", data);
+        const result = await syncService.saveData(data);
+        if (result.success) {
+          console.log("Data saved to server for real-time sync");
+          setSyncStatus('synced');
+        } else {
+          console.error("Failed to save data to server:", result.error);
+          setSyncStatus('error');
+        }
       } catch (error) {
-        console.error("Failed to save data to localStorage:", error);
+        console.error("Failed to save data to server:", error);
+        setSyncStatus('error');
       }
     };
 
-    // Debounce data saves to avoid excessive localStorage writes
+    // Debounce data saves to avoid excessive server calls
     const timeoutId = setTimeout(saveData, 1000);
     return () => clearTimeout(timeoutId);
   }, [data, hasLoadedData, isInitialLoad]);
 
-  // Save timer state changes to localStorage
+  // Save timer state changes to server
   useEffect(() => {
     if (!hasLoadedData || isInitialLoad) return;
     
-    const saveTimerState = () => {
+    const saveTimerState = async () => {
       try {
         if (currentSession) {
-          // Save current session with timer state to localStorage
-          const sessionData = {
+          // Save current session with timer state to server
+          const sessionData: Session = {
+            id: 'current',
             start: currentSession.start.toISOString(),
+            end: undefined,
             project: currentSession.project,
             description: currentSession.description,
-            isPaused,
-            pauseStartTime: pauseStartTime?.toISOString(),
-            totalPausedTime,
-            timestamp: Date.now()
+            _timerState: {
+              isPaused,
+              pauseStartTime: pauseStartTime?.toISOString(),
+              totalPausedTime
+            }
           };
           
-          localStorage.setItem('currentSession', JSON.stringify(sessionData));
-          console.log("Timer state saved to localStorage:", sessionData);
+          // Save to server for real-time sync
+          const success = await syncService.saveCurrentSession(sessionData);
+          if (success) {
+            console.log("Timer state saved to server for real-time sync");
+          } else {
+            console.error("Failed to save timer state to server");
+          }
         } else {
-          // Clear current session from localStorage
-          localStorage.removeItem('currentSession');
-          console.log("Cleared current session from localStorage");
+          // Clear current session from server
+          await syncService.clearCurrentSession();
+          console.log("Cleared current session from server");
         }
       } catch (error) {
         console.error("Failed to save timer state:", error);
       }
     };
 
-    // Debounce timer state saves to avoid excessive localStorage writes
+    // Debounce timer state saves to avoid excessive server calls
     const timeoutId = setTimeout(saveTimerState, 1000);
     return () => clearTimeout(timeoutId);
   }, [currentSession, isPaused, pauseStartTime, totalPausedTime, hasLoadedData, isInitialLoad]);

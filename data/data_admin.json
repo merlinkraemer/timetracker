@@ -1,35 +1,38 @@
 {
   "sessions": [
     {
-      "id": "mereh20dakgdenbr9l",
-      "start": "2025-08-25T17:37:00.000Z",
-      "end": "2025-08-25T17:37:00.000Z",
-      "project": "General",
-      "description": "test"
+      "id": "merf8hmumocrat9b2ke",
+      "start": "2025-08-25T17:58:56.325Z",
+      "end": "2025-08-25T17:58:59.910Z",
+      "project": "SkydiveEvents",
+      "description": ""
     }
   ],
   "projects": [
     {
-      "name": "General",
+      "name": "SAV",
       "color": "#3B82F6"
     },
     {
-      "name": "Development",
-      "color": "#10B981"
-    },
-    {
-      "name": "Meeting",
-      "color": "#F59E0B"
-    },
-    {
-      "name": "test",
-      "color": "#3B82F6"
+      "name": "SkydiveEvents",
+      "color": "#EF4444"
     }
   ],
-  "_version": 117,
-  "_lastModified": "2025-08-25T17:37:59.065Z",
+  "_version": 175,
+  "_lastModified": "2025-08-25T17:58:47.713Z",
   "_userId": "admin",
   "_clients": [
-    "client_1756143474352_vya169dzi:2025-08-25T17:37:59.065Z"
-  ]
+    "client_1756144733523_ssp2mfnf1:2025-08-25T17:58:47.713Z"
+  ],
+  "_activeClients": 0,
+  "currentSession": {
+    "id": "current",
+    "start": "2025-08-25T17:58:25.401Z",
+    "project": "SAV",
+    "description": "",
+    "_timerState": {
+      "isPaused": false,
+      "totalPausedTime": 0
+    }
+  }
 }

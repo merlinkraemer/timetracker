@@ -166,57 +166,44 @@ export default function Home() {
   }, [editingSession, editingProjectName]);
 
   // Define edit functions before they're used in projectButtons
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingSession) return;
-
-    const updatedSession: Session = {
-      ...editingSession,
-      start: editingSession.start,
-      end: editingSession.end,
-      project: editingSession.project,
-      description: editingSession.description,
-    };
 
     // Update local state immediately for instant UI feedback
     const updatedSessions = localSessions.map((s) =>
-      s.id === editingSession.id ? updatedSession : s
+      s.id === editingSession.id ? editingSession : s
     );
-
+    
+    // Update local state first for immediate UI update
     setLocalSessions(updatedSessions);
     
-    // Also update context state to ensure persistence
-    setData((prev) => ({
-      ...prev,
-      sessions: updatedSessions,
-    }));
-
+    // Clear editing state immediately for better UX
     setEditingSession(null);
     setEditingProjectName(null);
-    
-    // Save to localStorage instead of server
+
+    // Save to server for real-time sync
     try {
+      const { syncService } = await import('@/lib/sync-service');
+      
       const updatedData = {
         ...data,
         sessions: updatedSessions,
       };
       
-      // Save to localStorage
-      localStorage.setItem('timeTrackerData', JSON.stringify(updatedData));
-      console.log("Session edit saved to localStorage successfully");
-      
-      // Ensure context state is fully updated before navigation
-      setData((prev) => ({
-        ...prev,
-        sessions: updatedSessions,
-      }));
-      
-      // Small delay to ensure state updates have propagated
-      setTimeout(() => {
-        router.push("/history");
-      }, 100);
-      
+      const result = await syncService.saveData(updatedData);
+      if (result.success) {
+        console.log("Session edit saved to server for real-time sync");
+        
+        // Ensure context state is fully updated
+        setData((prev) => ({
+          ...prev,
+          sessions: updatedSessions,
+        }));
+      } else {
+        console.error("Failed to save session edit to server:", result.error);
+      }
     } catch (error) {
-      console.error("Error saving session edit to localStorage:", error);
+      console.error("Error saving session edit to server:", error);
     }
   };
 
@@ -390,26 +377,27 @@ export default function Home() {
       });
     }, 100);
 
-    // Save the new session to localStorage instead of server
+    // Save the new session to server for real-time sync
     try {
+      const { syncService } = await import('@/lib/sync-service');
+      
       const updatedData = {
         ...data,
         sessions: [newSession, ...localSessions],
       };
       
-      // Save to localStorage
-      localStorage.setItem('timeTrackerData', JSON.stringify(updatedData));
-      console.log("New session saved to localStorage successfully");
-      
-      // Update context state
-      setData(updatedData);
-      
+      const result = await syncService.saveData(updatedData);
+      if (result.success) {
+        console.log("New session saved to server for real-time sync");
+      } else {
+        console.error("Failed to save new session to server:", result.error);
+      }
     } catch (error) {
-      console.error("Error saving new session to localStorage:", error);
+      console.error("Error saving new session to server:", error);
     }
   };
 
-  const addProject = () => {
+  const addProject = async () => {
     if (!newProject.name.trim()) return;
 
     // Check if project already exists
@@ -434,24 +422,25 @@ export default function Home() {
     setNewProject({ name: "", color: "#3B82F6" });
     setShowNewProject(false);
     setShowDuplicateWarning(false);
-    // Clear any editing session so new projects can be clicked
-    setEditingSession(null);
-    setEditingProjectName(null);
 
-    // Save the new project to localStorage instead of server
+    // Save the new project to server for real-time sync
     try {
+      const { syncService } = await import('@/lib/sync-service');
+      
       const updatedData = {
         ...data,
         projects: updatedProjects,
         sessions: localSessions,
       };
       
-      // Save to localStorage
-      localStorage.setItem('timeTrackerData', JSON.stringify(updatedData));
-      console.log("New project saved to localStorage successfully");
-      
+      const result = await syncService.saveData(updatedData);
+      if (result.success) {
+        console.log("New project saved to server for real-time sync");
+      } else {
+        console.error("Failed to save new project to server:", result.error);
+      }
     } catch (error) {
-      console.error("Error saving new project to localStorage:", error);
+      console.error("Error saving new project to server:", error);
     }
   };
 
@@ -464,7 +453,7 @@ export default function Home() {
     });
   };
 
-  const saveProjectEdit = () => {
+  const saveProjectEdit = async () => {
     if (!editingProject || !editProjectForm.name.trim()) return;
 
     // Check if new name conflicts with existing projects
@@ -506,24 +495,28 @@ export default function Home() {
     setEditProjectForm({ name: "", color: "#3B82F6" });
     setShowDuplicateWarning(false);
 
-    // Save the project edit to localStorage instead of server
+    // Save the project edit to server for real-time sync
     try {
+      const { syncService } = await import('@/lib/sync-service');
+      
       const updatedData = {
         ...data,
         projects: updatedProjects,
         sessions: updatedSessions,
       };
       
-      // Save to localStorage
-      localStorage.setItem('timeTrackerData', JSON.stringify(updatedData));
-      console.log("Project edit saved to localStorage successfully");
-      
+      const result = await syncService.saveData(updatedData);
+      if (result.success) {
+        console.log("Project edit saved to server for real-time sync");
+      } else {
+        console.error("Failed to save project edit to server:", result.error);
+      }
     } catch (error) {
-      console.error("Error saving project edit to localStorage:", error);
+      console.error("Error saving project edit to server:", error);
     }
   };
 
-  const deleteProject = (projectName: string) => {
+  const deleteProject = async (projectName: string) => {
     // Count sessions that reference this project
     const sessionCount = localSessions.filter(
       (s) => s.project === projectName
@@ -558,20 +551,24 @@ export default function Home() {
         sessions: updatedSessions,
       }));
 
-      // Save the project deletion to localStorage instead of server
+      // Save the project deletion to server for real-time sync
       try {
+        const { syncService } = await import('@/lib/sync-service');
+        
         const updatedData = {
           ...data,
           projects: updatedProjects,
           sessions: updatedSessions,
         };
         
-        // Save to localStorage
-        localStorage.setItem('timeTrackerData', JSON.stringify(updatedData));
-        console.log("Project deletion saved to localStorage successfully");
-        
+        const result = await syncService.saveData(updatedData);
+        if (result.success) {
+          console.log("Project deletion saved to server for real-time sync");
+        } else {
+          console.error("Failed to save project deletion to server:", result.error);
+        }
       } catch (error) {
-        console.error("Error saving project deletion to localStorage:", error);
+        console.error("Error saving project deletion to server:", error);
       }
     }
   };

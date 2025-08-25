@@ -285,7 +285,7 @@ export default function History() {
     setEditingSession(session.id);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingSession) return;
 
     // Find the actual session object
@@ -333,23 +333,29 @@ export default function History() {
     // Set saving flag to prevent context from overriding our changes
     setIsSaving(true);
 
-    // Save to localStorage instead of server
+    // Save to server for real-time sync
     try {
+      const { syncService } = await import('@/lib/sync-service');
+      
       const updatedData = {
         ...data,
         sessions: updatedSessions,
       };
       
-      // Save to localStorage
-      localStorage.setItem('timeTrackerData', JSON.stringify(updatedData));
-      console.log("Session edit saved to localStorage successfully");
-      
-      // Update context state
-      setData(updatedData);
-      
+      const result = await syncService.saveData(updatedData);
+      if (result.success) {
+        console.log("Session edit saved to server for real-time sync");
+        
+        // Ensure context state is fully updated
+        setData((prev) => ({
+          ...prev,
+          sessions: updatedSessions,
+        }));
+      } else {
+        console.error("Failed to save session edit to server:", result.error);
+      }
     } catch (error) {
-      console.error("Error saving session edit to localStorage:", error);
-      // Optionally show error message to user
+      console.error("Error saving session edit to server:", error);
     } finally {
       // Clear saving flag after save completes
       setIsSaving(false);
@@ -366,7 +372,7 @@ export default function History() {
     });
   };
 
-  const deleteSession = (sessionId: string) => {
+  const deleteSession = async (sessionId: string) => {
     if (
       confirm(
         "Are you sure you want to delete this session? This action cannot be undone."
@@ -384,19 +390,23 @@ export default function History() {
         sessions: updatedSessions,
       });
 
-      // Save to localStorage instead of server
+      // Save to server for real-time sync
       try {
+        const { syncService } = await import('@/lib/sync-service');
+        
         const updatedData = {
           ...data,
           sessions: updatedSessions,
         };
         
-        // Save to localStorage
-        localStorage.setItem('timeTrackerData', JSON.stringify(updatedData));
-        console.log("Session deletion saved to localStorage successfully");
-        
+        const result = await syncService.saveData(updatedData);
+        if (result.success) {
+          console.log("Session deletion saved to server for real-time sync");
+        } else {
+          console.error("Failed to save session deletion to server:", result.error);
+        }
       } catch (error) {
-        console.error("Error saving session deletion to localStorage:", error);
+        console.error("Error saving session deletion to server:", error);
       }
     }
   };
