@@ -1017,7 +1017,7 @@ export default function Home() {
       className="h-screen bg-background text-foreground px-2 sm:px-4 flex flex-col swipe-container"
     >
       {/* Top Controls - Full width container */}
-      <div className="w-full max-w-2xl mx-auto px-2 sm:px-0 pt-4">
+      <div className="w-full max-w-2xl mx-auto px-2 sm:px-0 pt-12">
         <div className="flex justify-end">
           <Button
             onClick={() => setEditMode(!editMode)}

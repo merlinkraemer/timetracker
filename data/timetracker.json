@@ -1,21 +1,20 @@
 {
   "sessions": [
     {
-      "id": "meris72ldbo53et6n5",
-      "start": "2025-08-25T19:38:00.772Z",
-      "end": "2025-08-25T19:38:18.189Z",
-      "project": "test",
-      "description": "",
-      "cashedOut": true
+      "id": "meriz5ox2kstowivbmr",
+      "start": "2025-08-25T19:43:40.196Z",
+      "end": "2025-08-25T19:43:42.993Z",
+      "project": "Skydive Events",
+      "description": ""
     }
   ],
   "projects": [
     {
-      "name": "test",
+      "name": "SAV",
       "color": "#3B82F6"
     },
     {
-      "name": "testt",
+      "name": "Skydive Events",
       "color": "#EF4444"
     }
   ]
