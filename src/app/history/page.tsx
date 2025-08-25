@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,25 @@ import { useSwipeNavigation } from "@/lib/use-swipe-navigation";
 export default function History() {
   const router = useRouter();
   const { data, setData, isLoading } = useTimeTracker();
+  
+  // Local state for immediate UI updates
+  const [localSessions, setLocalSessions] = useState(data.sessions);
+  const [editingSession, setEditingSession] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Sync local state with context data, but only when not editing or saving
+  useEffect(() => {
+    if (!editingSession && !isSaving) {
+      setLocalSessions(data.sessions);
+    }
+  }, [data.sessions, editingSession, isSaving]);
+  
+  // Also sync when sessions are added/removed from timer operations
+  useEffect(() => {
+    if (data.sessions.length !== localSessions.length && !editingSession && !isSaving) {
+      setLocalSessions(data.sessions);
+    }
+  }, [data.sessions.length, localSessions.length, data.sessions, editingSession, isSaving]);
 
   // Swipe navigation for mobile
   const { elementRef } = useSwipeNavigation({
@@ -43,13 +62,47 @@ export default function History() {
   const [showExportPopup, setShowExportPopup] = useState(false);
   const [exportDate, setExportDate] = useState(new Date().toISOString());
   const [exportProject, setExportProject] = useState<string>("all");
-  const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     startTime: "",
     endTime: "",
     project: "",
     description: "",
   });
+
+  // Memoize filtered sessions to improve performance
+  const filteredSessions = useMemo(() => {
+    return localSessions.filter((session) => {
+      const date = new Date(session.start);
+      const monthKey = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, "0")}`;
+      const matchesMonth = monthKey === currentMonth;
+      const matchesProject =
+        selectedProject === "all" || session.project === selectedProject;
+      return matchesMonth && matchesProject;
+    });
+  }, [localSessions, currentMonth, selectedProject]);
+
+  // Memoize grouped sessions to improve performance
+  const groupedSessions = useMemo(() => {
+    return filteredSessions.reduce((groups, session) => {
+      const date = new Date(session.start);
+      const dateKey = date.toDateString();
+
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(session);
+      return groups;
+    }, {} as Record<string, Session[]>);
+  }, [filteredSessions]);
+
+  // Memoize sorted dates to improve performance
+  const sortedDates = useMemo(() => {
+    return Object.keys(groupedSessions).sort(
+      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    );
+  }, [groupedSessions]);
 
   // Show loading state
   if (isLoading) {
@@ -65,34 +118,6 @@ export default function History() {
       </div>
     );
   }
-
-  // Filter sessions by selected month and project
-  const filteredSessions = data.sessions.filter((session) => {
-    const date = new Date(session.start);
-    const monthKey = `${date.getFullYear()}-${String(
-      date.getMonth() + 1
-    ).padStart(2, "0")}`;
-    const matchesMonth = monthKey === currentMonth;
-    const matchesProject =
-      selectedProject === "all" || session.project === selectedProject;
-    return matchesMonth && matchesProject;
-  });
-
-  // Group sessions by date within the selected month
-  const groupedSessions = filteredSessions.reduce((groups, session) => {
-    const date = new Date(session.start);
-    const dateKey = date.toDateString();
-
-    if (!groups[dateKey]) {
-      groups[dateKey] = [];
-    }
-    groups[dateKey].push(session);
-    return groups;
-  }, {} as Record<string, Session[]>);
-
-  const sortedDates = Object.keys(groupedSessions).sort(
-    (a, b) => new Date(b).getTime() - new Date(a).getTime()
-  );
 
   const formatMonthYear = (monthKey: string) => {
     const [year, month] = monthKey.split("-");
@@ -237,41 +262,47 @@ export default function History() {
   };
 
   const startEditing = (session: Session) => {
-    const startDate = new Date(session.start);
-    const endDate = session.end ? new Date(session.end) : new Date();
-
     setEditForm({
-      startTime: startDate.toLocaleTimeString("en-US", {
+      startTime: new Date(session.start).toLocaleTimeString("en-US", {
         hour12: false,
         hour: "2-digit",
         minute: "2-digit",
       }),
-      endTime: endDate.toLocaleTimeString("en-US", {
-        hour12: false,
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      endTime: session.end
+        ? new Date(session.end).toLocaleTimeString("en-US", {
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : new Date().toLocaleTimeString("en-US", {
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
       project: session.project,
       description: session.description || "",
     });
     setEditingSession(session.id);
   };
 
-  const saveEdit = (sessionId: string) => {
-    const session = data.sessions.find((s) => s.id === sessionId);
+  const saveEdit = () => {
+    if (!editingSession) return;
+
+    // Find the actual session object
+    const session = data.sessions.find((s) => s.id === editingSession);
     if (!session) return;
 
-    const startDate = new Date(session.start);
-    const endDate = session.end ? new Date(session.end) : new Date();
-
-    // Parse times and update dates
+    // Parse the time strings (format: "14:30")
     const [startHour, startMinute] = editForm.startTime.split(":").map(Number);
     const [endHour, endMinute] = editForm.endTime.split(":").map(Number);
 
-    const newStartDate = new Date(startDate);
+    // Create new dates using the original session dates but with updated times
+    const originalStartDate = new Date(session.start);
+    const newStartDate = new Date(originalStartDate);
     newStartDate.setHours(startHour, startMinute, 0, 0);
 
-    const newEndDate = new Date(endDate);
+    const originalEndDate = session.end ? new Date(session.end) : new Date();
+    const newEndDate = new Date(originalEndDate);
     newEndDate.setHours(endHour, endMinute, 0, 0);
 
     const updatedSession: Session = {
@@ -282,18 +313,70 @@ export default function History() {
       description: editForm.description,
     };
 
-    setData((prev) => ({
-      ...prev,
-      sessions: prev.sessions.map((s) =>
-        s.id === sessionId ? updatedSession : s
-      ),
-    }));
-
+    // Update local state immediately for instant UI feedback
+    const updatedSessions = localSessions.map((s) =>
+      s.id === editingSession ? updatedSession : s
+    );
+    
+    // Update local state first for immediate UI update
+    setLocalSessions(updatedSessions);
+    
+    // Clear editing state and form immediately for better UX
     setEditingSession(null);
+    setEditForm({
+      startTime: "",
+      endTime: "",
+      project: "",
+      description: "",
+    });
+
+    // Set saving flag to prevent context from overriding our changes
+    setIsSaving(true);
+
+    // Save to server in the background
+    const saveToServer = async () => {
+      try {
+        const { syncService } = await import('@/lib/sync-service');
+        
+        const updatedData = {
+          projects: data.projects,
+          sessions: updatedSessions,
+        };
+        
+        const result = await syncService.saveData(updatedData);
+        if (result.success) {
+          console.log("Session edit saved to server successfully");
+          
+          // Ensure context state is fully updated
+          setData((prev) => ({
+            ...prev,
+            sessions: updatedSessions,
+          }));
+        } else {
+          console.error("Failed to save session edit to server:", result.error);
+          // Optionally show error message to user
+        }
+      } catch (error) {
+        console.error("Error saving session edit to server:", error);
+        // Optionally show error message to user
+      } finally {
+        // Clear saving flag after save completes
+        setIsSaving(false);
+      }
+    };
+
+    // Execute the save in the background
+    saveToServer();
   };
 
   const cancelEdit = () => {
     setEditingSession(null);
+    setEditForm({
+      startTime: "",
+      endTime: "",
+      project: "",
+      description: "",
+    });
   };
 
   const deleteSession = (sessionId: string) => {
@@ -302,10 +385,39 @@ export default function History() {
         "Are you sure you want to delete this session? This action cannot be undone."
       )
     ) {
-      setData((prev) => ({
-        ...prev,
-        sessions: prev.sessions.filter((s) => s.id !== sessionId),
-      }));
+      // Update local state immediately for instant UI feedback
+      const updatedSessions = localSessions.filter((s) => s.id !== sessionId);
+      
+      // Update local state first for immediate UI update
+      setLocalSessions(updatedSessions);
+      
+      // Then update context state
+      setData({
+        ...data,
+        sessions: updatedSessions,
+      });
+
+      // Save to server using sync service
+      const saveToServer = async () => {
+        try {
+          const { syncService } = await import('@/lib/sync-service');
+          const updatedData = {
+            ...data,
+            sessions: updatedSessions,
+          };
+          
+          const result = await syncService.saveData(updatedData);
+          if (result.success) {
+            console.log("Session deletion saved to server successfully");
+          } else {
+            console.error("Failed to save session deletion to server:", result.error);
+          }
+        } catch (error) {
+          console.error("Error saving session deletion to server:", error);
+        }
+      };
+
+      saveToServer();
     }
   };
 
@@ -503,7 +615,7 @@ export default function History() {
                                         value={
                                           editForm.project || session.project
                                         }
-                                        onValueChange={(value) =>
+                                        onValueChange={(value: string) =>
                                           setEditForm((prev) => ({
                                             ...prev,
                                             project: value,
@@ -572,7 +684,7 @@ export default function History() {
                                         <X className="h-5 w-5" />
                                       </Button>
                                       <Button
-                                        onClick={() => saveEdit(session.id)}
+                                        onClick={() => saveEdit()}
                                         size="lg"
                                         className="h-12 w-12 rounded-full"
                                       >
@@ -768,7 +880,7 @@ export default function History() {
                                               editForm.project ||
                                               session.project
                                             }
-                                            onValueChange={(value) =>
+                                            onValueChange={(value: string) =>
                                               setEditForm((prev) => ({
                                                 ...prev,
                                                 project: value,
@@ -835,7 +947,7 @@ export default function History() {
                                             <X className="h-5 w-5" />
                                           </Button>
                                           <Button
-                                            onClick={() => saveEdit(session.id)}
+                                            onClick={() => saveEdit()}
                                             size="lg"
                                             className="h-12 w-12 rounded-full"
                                           >

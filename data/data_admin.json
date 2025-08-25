@@ -1,0 +1,35 @@
+{
+  "sessions": [
+    {
+      "id": "mereh20dakgdenbr9l",
+      "start": "2025-08-25T17:37:00.000Z",
+      "end": "2025-08-25T17:37:00.000Z",
+      "project": "General",
+      "description": "test"
+    }
+  ],
+  "projects": [
+    {
+      "name": "General",
+      "color": "#3B82F6"
+    },
+    {
+      "name": "Development",
+      "color": "#10B981"
+    },
+    {
+      "name": "Meeting",
+      "color": "#F59E0B"
+    },
+    {
+      "name": "test",
+      "color": "#3B82F6"
+    }
+  ],
+  "_version": 117,
+  "_lastModified": "2025-08-25T17:37:59.065Z",
+  "_userId": "admin",
+  "_clients": [
+    "client_1756143474352_vya169dzi:2025-08-25T17:37:59.065Z"
+  ]
+}

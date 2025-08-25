@@ -1,0 +1,30 @@
+
+
+services:
+  timetracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: timetracker-app
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    volumes:
+      # Mount local data directory for persistence
+      - ./data:/app/data
+    user: "1000:1000"  # Use the host user for proper file permissions
+    networks:
+      - timetracker-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/data"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  timetracker-network:
+    driver: bridge
