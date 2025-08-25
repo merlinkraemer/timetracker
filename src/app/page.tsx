@@ -1016,17 +1016,19 @@ export default function Home() {
       ref={elementRef}
       className="h-screen bg-background text-foreground px-2 sm:px-4 flex flex-col swipe-container"
     >
-      {/* Top Controls - Fixed at top right */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <Button
-          onClick={() => setEditMode(!editMode)}
-          variant={editMode ? "default" : "outline"}
-          size="sm"
-          className="flex items-center gap-2"
-          disabled={!!currentSession} // Disable edit mode when timer is running
-        >
-          {editMode ? "Done" : "Edit"}
-        </Button>
+      {/* Top Controls - Full width container */}
+      <div className="w-full max-w-2xl mx-auto px-2 sm:px-0 pt-4">
+        <div className="flex justify-end">
+          <Button
+            onClick={() => setEditMode(!editMode)}
+            variant={editMode ? "default" : "outline"}
+            size="sm"
+            className="flex items-center gap-2"
+            disabled={!!currentSession} // Disable edit mode when timer is running
+          >
+            {editMode ? "Done" : "Edit"}
+          </Button>
+        </div>
       </div>
 
       {/* Main Content - Centered vertically in viewport */}
@@ -1049,8 +1051,6 @@ export default function Home() {
               })}
             </div>
           </div>
-
-
 
           {/* Project Buttons */}
           <div className="w-full space-y-2 sm:space-y-3 lg:space-y-4">
