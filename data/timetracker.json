@@ -1,0 +1,22 @@
+{
+  "sessions": [
+    {
+      "id": "meris72ldbo53et6n5",
+      "start": "2025-08-25T19:38:00.772Z",
+      "end": "2025-08-25T19:38:18.189Z",
+      "project": "test",
+      "description": "",
+      "cashedOut": true
+    }
+  ],
+  "projects": [
+    {
+      "name": "test",
+      "color": "#3B82F6"
+    },
+    {
+      "name": "testt",
+      "color": "#EF4444"
+    }
+  ]
+}

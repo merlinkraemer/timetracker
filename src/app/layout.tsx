@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { TimeTrackerProvider } from "@/lib/context";
-import { AuthWrapper } from "@/components/auth-wrapper";
 
 export const metadata: Metadata = {
   title: "Timetracker",
@@ -45,9 +44,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        <AuthWrapper>
-          <TimeTrackerProvider>{children}</TimeTrackerProvider>
-        </AuthWrapper>
+        <TimeTrackerProvider>{children}</TimeTrackerProvider>
       </body>
     </html>
   );

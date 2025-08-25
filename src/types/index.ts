@@ -5,11 +5,6 @@ export interface Session {
   project: string; // This will store the project name
   description: string;
   cashedOut?: boolean; // Whether this session has been cashed out
-  _timerState?: {
-    isPaused: boolean;
-    pauseStartTime?: string;
-    totalPausedTime: number;
-  };
 }
 
 export interface Project {
@@ -20,7 +15,6 @@ export interface Project {
 export interface TimeTrackerData {
   sessions: Session[];
   projects: Project[];
-  currentSession?: Session;
 }
 
 export interface CurrentSession {

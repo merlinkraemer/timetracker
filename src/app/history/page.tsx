@@ -24,7 +24,7 @@ import { useSwipeNavigation } from "@/lib/use-swipe-navigation";
 
 export default function History() {
   const router = useRouter();
-  const { data, setData, isLoading } = useTimeTracker();
+  const { data, setData } = useTimeTracker();
   
   // Local state for immediate UI updates
   const [localSessions, setLocalSessions] = useState(data.sessions);
@@ -104,20 +104,7 @@ export default function History() {
     );
   }, [groupedSessions]);
 
-  // Show loading state
-  if (isLoading) {
-    return (
-      <div
-        ref={elementRef}
-        className="min-h-screen bg-background text-foreground p-2 sm:p-4 pt-8 sm:pt-12 pb-28 sm:pb-32 swipe-container"
-      >
-        <div className="max-w-2xl mx-auto space-y-4 sm:space-y-8">
-          <div className="text-center text-muted-foreground">Loading...</div>
-        </div>
-        <FloatingNavbar currentRoute="history" />
-      </div>
-    );
-  }
+
 
   const formatMonthYear = (monthKey: string) => {
     const [year, month] = monthKey.split("-");
@@ -333,33 +320,8 @@ export default function History() {
     // Set saving flag to prevent context from overriding our changes
     setIsSaving(true);
 
-    // Save to server for real-time sync
-    try {
-      const { syncService } = await import('@/lib/sync-service');
-      
-      const updatedData = {
-        ...data,
-        sessions: updatedSessions,
-      };
-      
-      const result = await syncService.saveData(updatedData);
-      if (result.success) {
-        console.log("Session edit saved to server for real-time sync");
-        
-        // Ensure context state is fully updated
-        setData((prev) => ({
-          ...prev,
-          sessions: updatedSessions,
-        }));
-      } else {
-        console.error("Failed to save session edit to server:", result.error);
-      }
-    } catch (error) {
-      console.error("Error saving session edit to server:", error);
-    } finally {
-      // Clear saving flag after save completes
-      setIsSaving(false);
-    }
+    // Clear saving flag after save completes
+    setIsSaving(false);
   };
 
   const cancelEdit = () => {
@@ -390,24 +352,7 @@ export default function History() {
         sessions: updatedSessions,
       });
 
-      // Save to server for real-time sync
-      try {
-        const { syncService } = await import('@/lib/sync-service');
-        
-        const updatedData = {
-          ...data,
-          sessions: updatedSessions,
-        };
-        
-        const result = await syncService.saveData(updatedData);
-        if (result.success) {
-          console.log("Session deletion saved to server for real-time sync");
-        } else {
-          console.error("Failed to save session deletion to server:", result.error);
-        }
-      } catch (error) {
-        console.error("Error saving session deletion to server:", error);
-      }
+
     }
   };
 

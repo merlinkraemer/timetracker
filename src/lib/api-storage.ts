@@ -1,4 +1,4 @@
-import { TimeTrackerData, CurrentSession } from "@/types";
+import { TimeTrackerData } from "@/types";
 
 const API_BASE = "/api/data";
 
@@ -15,7 +15,6 @@ export const loadDataFromServer = async (): Promise<TimeTrackerData> => {
     return {
       sessions: [],
       projects: [],
-      currentSession: undefined,
     };
   }
 };
@@ -38,51 +37,7 @@ export const saveDataToServer = async (
   }
 };
 
-export const saveCurrentSessionToServer = async (
-  session: CurrentSession
-): Promise<boolean> => {
-  try {
-    // First load current data
-    const currentData = await loadDataFromServer();
-
-    // Update with current session (convert Date to string for storage)
-    const updatedData: TimeTrackerData = {
-      ...currentData,
-      currentSession: {
-        id: "current",
-        start: session.start.toISOString(),
-        end: undefined,
-        project: session.project,
-        description: session.description,
-      },
-    };
-
-    return await saveDataToServer(updatedData);
-  } catch (error) {
-    console.error("Error saving current session:", error);
-    return false;
-  }
-};
-
-export const clearCurrentSessionFromServer = async (): Promise<boolean> => {
-  try {
-    // Load current data
-    const currentData = await loadDataFromServer();
-
-    // Remove current session
-    const updatedData: TimeTrackerData = {
-      ...currentData,
-      currentSession: undefined,
-    };
-
-    return await saveDataToServer(updatedData);
-  } catch (error) {
-    console.error("Error clearing current session:", error);
-    return false;
-  }
-};
-
-// Keep the original localStorage functions as fallback
+// Utility functions
 export const formatDuration = (ms: number): string => {
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,6 @@ import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { FloatingNavbar } from "@/components/ui/floating-navbar";
 import { useTimeTracker } from "@/lib/context";
 import { useSwipeNavigation } from "@/lib/use-swipe-navigation";
-import { SyncIndicator } from "@/components/ui/sync-indicator";
 import {
   Play,
   Square,
@@ -39,8 +38,6 @@ import {
   Save,
   Edit,
   Trash,
-  LogOut,
-  Users,
 } from "lucide-react";
 
 export default function Home() {
@@ -50,16 +47,13 @@ export default function Home() {
     setData, 
     currentSession, 
     setCurrentSession, 
-    isLoading, 
-    syncStatus,
     isPaused,
     setIsPaused,
     pauseStartTime,
     setPauseStartTime,
     totalPausedTime,
     setTotalPausedTime,
-    clearTimerState,
-    restoreTimerStateFromLocalStorage
+    clearTimerState
   } = useTimeTracker();
   
   // Local state for immediate UI updates
@@ -93,7 +87,6 @@ export default function Home() {
   });
 
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [activeClients, setActiveClients] = useState(0);
   const isTransitioningRef = useRef(false);
 
   // Update current time every second for smooth timer display
@@ -133,28 +126,6 @@ export default function Home() {
     });
   }, [isPaused, pauseStartTime, totalPausedTime, currentSession]);
 
-  // Check for active clients - reduced frequency to improve performance
-  useEffect(() => {
-    const checkActiveClients = async () => {
-      try {
-        const response = await fetch('/api/data', { method: 'HEAD' });
-        if (response.ok) {
-          const clientCount = response.headers.get('X-Active-Clients');
-          if (clientCount) {
-            setActiveClients(parseInt(clientCount, 10));
-          }
-        }
-      } catch (error) {
-        console.error('Failed to check active clients:', error);
-      }
-    };
-
-    checkActiveClients();
-    const interval = setInterval(checkActiveClients, 30000); // Check every 30 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
   // Debug useEffect to monitor editing state changes
   useEffect(() => {
     console.log("Editing state changed:", {
@@ -181,38 +152,13 @@ export default function Home() {
     setEditingSession(null);
     setEditingProjectName(null);
 
-    // Save to server for real-time sync
-    try {
-      const { syncService } = await import('@/lib/sync-service');
-      
-      const updatedData = {
-        ...data,
-        sessions: updatedSessions,
-      };
-      
-      const result = await syncService.saveData(updatedData);
-      if (result.success) {
-        console.log("Session edit saved to server for real-time sync");
-        
-        // Ensure context state is fully updated
-        setData((prev) => ({
-          ...prev,
-          sessions: updatedSessions,
-        }));
-      } else {
-        console.error("Failed to save session edit to server:", result.error);
-      }
-    } catch (error) {
-      console.error("Error saving session edit to server:", error);
-    }
+
   };
 
   const cancelEdit = () => {
     setEditingSession(null);
     setEditingProjectName(null);
   };
-
-
 
   // Validate currentSession - if the project doesn't exist anymore, clear it
   useEffect(() => {
@@ -249,58 +195,8 @@ export default function Home() {
     setTotalPausedTime(0);
     isTransitioningRef.current = false;
 
-    // Let the context handle saving - no need for immediate save
-    console.log("Timer started, context will handle saving");
+    console.log("Timer started");
   };
-
-  // Debug function to check localStorage timer state
-  const checkLocalStorageTimerState = useCallback(() => {
-    try {
-      const timerStateKey = `currentTimerState`;
-      const localStorageData = localStorage.getItem(timerStateKey);
-      if (localStorageData) {
-        const timerState = JSON.parse(localStorageData);
-        console.log("LocalStorage timer state:", timerState);
-      } else {
-        console.log("No timer state found in localStorage");
-      }
-    } catch (error) {
-      console.error("Error checking localStorage timer state:", error);
-    }
-  }, []);
-
-  // Debug function to test timer state restoration
-  const testTimerStateRestoration = useCallback(async () => {
-    console.log("Testing timer state restoration...");
-    const success = await restoreTimerStateFromLocalStorage();
-    if (success) {
-      console.log("Timer state restoration successful");
-    } else {
-      console.log("Timer state restoration failed");
-    }
-  }, [restoreTimerStateFromLocalStorage]);
-
-  // Debug function to reset stuck timer state
-  const resetTimerState = useCallback(() => {
-    console.log("Resetting timer state...");
-    setCurrentSession(null);
-    setIsPaused(false);
-    setPauseStartTime(null);
-    setTotalPausedTime(0);
-    setEditingSession(null);
-    setEditingProjectName(null);
-    clearTimerState();
-  }, [setCurrentSession, setIsPaused, setPauseStartTime, setTotalPausedTime, clearTimerState]);
-
-  // Expose reset function globally for debugging
-  useEffect(() => {
-    (window as unknown as Record<string, unknown>).resetTimerState = resetTimerState;
-    (window as unknown as Record<string, unknown>).checkLocalStorageTimerState = checkLocalStorageTimerState;
-    return () => {
-      delete (window as unknown as Record<string, unknown>).resetTimerState;
-      delete (window as unknown as Record<string, unknown>).checkLocalStorageTimerState;
-    };
-  }, [resetTimerState, checkLocalStorageTimerState]);
 
   const pauseTimer = async () => {
     if (!currentSession || isPaused) return;
@@ -346,20 +242,16 @@ export default function Home() {
     clearTimerState();
 
     // Add to sessions and set editing state
-    setLocalSessions((prev) => {
-      console.log("Updating local sessions with new session");
-      const updatedSessions = [newSession, ...prev];
-      
-      // Also update context state to ensure persistence
-      setData((prevData) => {
-        console.log("Updating context with new session");
-        return {
-          ...prevData,
-          sessions: updatedSessions,
-        };
-      });
-      
-      return updatedSessions;
+    const updatedSessions = [newSession, ...localSessions];
+    setLocalSessions(updatedSessions);
+    
+    // Also update context state to ensure persistence
+    setData((prevData) => {
+      console.log("Updating context with new session");
+      return {
+        ...prevData,
+        sessions: updatedSessions,
+      };
     });
 
     // Set editing state - this should trigger the edit field to open
@@ -377,24 +269,7 @@ export default function Home() {
       });
     }, 100);
 
-    // Save the new session to server for real-time sync
-    try {
-      const { syncService } = await import('@/lib/sync-service');
-      
-      const updatedData = {
-        ...data,
-        sessions: [newSession, ...localSessions],
-      };
-      
-      const result = await syncService.saveData(updatedData);
-      if (result.success) {
-        console.log("New session saved to server for real-time sync");
-      } else {
-        console.error("Failed to save new session to server:", result.error);
-      }
-    } catch (error) {
-      console.error("Error saving new session to server:", error);
-    }
+
   };
 
   const addProject = async () => {
@@ -423,25 +298,7 @@ export default function Home() {
     setShowNewProject(false);
     setShowDuplicateWarning(false);
 
-    // Save the new project to server for real-time sync
-    try {
-      const { syncService } = await import('@/lib/sync-service');
-      
-      const updatedData = {
-        ...data,
-        projects: updatedProjects,
-        sessions: localSessions,
-      };
-      
-      const result = await syncService.saveData(updatedData);
-      if (result.success) {
-        console.log("New project saved to server for real-time sync");
-      } else {
-        console.error("Failed to save new project to server:", result.error);
-      }
-    } catch (error) {
-      console.error("Error saving new project to server:", error);
-    }
+
   };
 
   const startEditingProject = (projectName: string) => {
@@ -495,25 +352,7 @@ export default function Home() {
     setEditProjectForm({ name: "", color: "#3B82F6" });
     setShowDuplicateWarning(false);
 
-    // Save the project edit to server for real-time sync
-    try {
-      const { syncService } = await import('@/lib/sync-service');
-      
-      const updatedData = {
-        ...data,
-        projects: updatedProjects,
-        sessions: updatedSessions,
-      };
-      
-      const result = await syncService.saveData(updatedData);
-      if (result.success) {
-        console.log("Project edit saved to server for real-time sync");
-      } else {
-        console.error("Failed to save project edit to server:", result.error);
-      }
-    } catch (error) {
-      console.error("Error saving project edit to server:", error);
-    }
+
   };
 
   const deleteProject = async (projectName: string) => {
@@ -551,25 +390,7 @@ export default function Home() {
         sessions: updatedSessions,
       }));
 
-      // Save the project deletion to server for real-time sync
-      try {
-        const { syncService } = await import('@/lib/sync-service');
-        
-        const updatedData = {
-          ...data,
-          projects: updatedProjects,
-          sessions: updatedSessions,
-        };
-        
-        const result = await syncService.saveData(updatedData);
-        if (result.success) {
-          console.log("Project deletion saved to server for real-time sync");
-        } else {
-          console.error("Failed to save project deletion to server:", result.error);
-        }
-      } catch (error) {
-        console.error("Error saving project deletion to server:", error);
-      }
+
     }
   };
 
@@ -578,45 +399,6 @@ export default function Home() {
     setEditProjectForm({ name: "", color: "#3B82F6" });
     setShowDuplicateWarning(false);
   };
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      router.push('/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
-
-  // Show loading state
-  if (isLoading) {
-    return (
-      <div
-        ref={elementRef}
-        className="h-screen bg-background text-foreground px-2 sm:px-4 flex flex-col swipe-container"
-      >
-        <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col justify-center">
-          {/* Simple loading indicator */}
-          <div className="text-center">
-            <div className="text-lg text-muted-foreground mb-4">Loading...</div>
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          </div>
-        </div>
-        <div className="absolute top-4 right-4 z-10">
-          <Button
-            onClick={() => {}}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2"
-            disabled
-          >
-            Edit
-          </Button>
-        </div>
-        <FloatingNavbar currentRoute="home" />
-      </div>
-    );
-  }
 
   // Main render function for project cards
   const renderProjectCards = () => {
@@ -710,8 +492,8 @@ export default function Home() {
                       }`}
                     >
                       {isCurrentTimer && currentSession
-                        ? formatDuration(
-                            Math.max(
+                        ? (() => {
+                            const elapsed = Math.max(
                               0,
                               currentTime.getTime() -
                                 currentSession.start.getTime() -
@@ -720,8 +502,18 @@ export default function Home() {
                                   ? currentTime.getTime() -
                                     pauseStartTime.getTime()
                                   : 0)
-                            )
-                          )
+                            );
+                            console.log("🕐 Timer calculation:", {
+                              currentTime: currentTime.toISOString(),
+                              sessionStart: currentSession.start.toISOString(),
+                              totalPausedTime,
+                              isPaused,
+                              pauseStartTime: pauseStartTime?.toISOString(),
+                              calculatedElapsed: elapsed,
+                              formattedDuration: formatDuration(elapsed)
+                            });
+                            return formatDuration(elapsed);
+                          })()
                         : editingSession && editingProjectName === project.name
                         ? formatDuration(
                             Math.max(
@@ -1226,45 +1018,6 @@ export default function Home() {
     >
       {/* Top Controls - Fixed at top right */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Users className="w-4 h-4" />
-          <span>{activeClients} active</span>
-        </div>
-        <SyncIndicator status={syncStatus} />
-        
-        {/* Debug buttons - only show in development */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="flex items-center gap-1">
-            <Button
-              onClick={checkLocalStorageTimerState}
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              title="Check localStorage timer state"
-            >
-              Check
-            </Button>
-            <Button
-              onClick={testTimerStateRestoration}
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              title="Test timer state restoration"
-            >
-              Restore
-            </Button>
-            <Button
-              onClick={resetTimerState}
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              title="Reset timer state"
-            >
-              Reset
-            </Button>
-          </div>
-        )}
-        
         <Button
           onClick={() => setEditMode(!editMode)}
           variant={editMode ? "default" : "outline"}
@@ -1273,15 +1026,6 @@ export default function Home() {
           disabled={!!currentSession} // Disable edit mode when timer is running
         >
           {editMode ? "Done" : "Edit"}
-        </Button>
-        <Button
-          onClick={handleLogout}
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-2"
-        >
-          <LogOut className="w-4 h-4" />
-          Logout
         </Button>
       </div>
 
@@ -1306,27 +1050,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Timer State Indicator */}
-          {currentSession && (
-            <div className="text-center space-y-2">
-              <div className="text-lg font-semibold text-primary">
-                {currentSession.project} Timer
-              </div>
-              <div className="text-sm text-muted-foreground">
-                Started: {currentSession.start.toLocaleTimeString()}
-              </div>
-              {isPaused && (
-                <div className="text-sm text-amber-600 font-medium">
-                  ⏸️ Paused
-                </div>
-              )}
-              {totalPausedTime > 0 && (
-                <div className="text-xs text-muted-foreground">
-                  Total paused: {Math.round(totalPausedTime / 1000)}s
-                </div>
-              )}
-            </div>
-          )}
+
 
           {/* Project Buttons */}
           <div className="w-full space-y-2 sm:space-y-3 lg:space-y-4">

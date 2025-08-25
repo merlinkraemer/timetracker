@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Deploying TimeTracker application with authentication..."
+echo "🚀 Deploying TimeTracker application (Local-First Version)..."
 
 # Stop and remove existing containers
 echo "📦 Stopping existing containers..."
@@ -16,27 +16,18 @@ mkdir -p ./data
 chmod 777 ./data
 chown -R 1000:1000 ./data 2>/dev/null || echo "⚠️  Could not change ownership (may need sudo)"
 
-# Create initial user data file if it doesn't exist
-echo "👤 Setting up initial user data..."
-if [ ! -f "./data/user_admin.json" ]; then
-  cat > ./data/user_admin.json << EOF
+# Create initial data file if it doesn't exist
+echo "📊 Setting up initial data..."
+if [ ! -f "./data/timetracker.json" ]; then
+  cat > ./data/timetracker.json << EOF
 {
-  "_version": 0,
-  "_lastModified": "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")",
-  "_userId": "admin",
-  "_clients": [],
   "sessions": [],
-  "projects": [
-    { "name": "General", "color": "#3B82F6" },
-    { "name": "Development", "color": "#10B981" },
-    { "name": "Meeting", "color": "#F59E0B" }
-  ],
-  "currentSession": null
+  "projects": []
 }
 EOF
-  echo "✅ Initial user data created"
+  echo "✅ Initial data created"
 else
-  echo "✅ User data already exists"
+  echo "✅ Data file already exists"
 fi
 
 # Build and start the application
@@ -52,9 +43,8 @@ sleep 15
 if docker compose ps | grep -q "Up"; then
     echo "✅ Application is running successfully!"
     echo "🌐 Access your app at: http://localhost:3003"
-    echo "🔐 Login with: admin / admin123"
     echo "📊 Data is persisted in: ./data/"
-    echo "🔒 Authentication is enabled"
+    echo "💾 Local-first storage with localStorage and file backup"
     echo ""
     echo "📋 Container status:"
     docker compose ps
