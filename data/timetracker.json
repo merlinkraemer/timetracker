@@ -1,21 +1,4 @@
 {
-  "sessions": [
-    {
-      "id": "meriz5ox2kstowivbmr",
-      "start": "2025-08-25T19:43:40.196Z",
-      "end": "2025-08-25T19:43:42.993Z",
-      "project": "Skydive Events",
-      "description": ""
-    }
-  ],
-  "projects": [
-    {
-      "name": "SAV",
-      "color": "#3B82F6"
-    },
-    {
-      "name": "Skydive Events",
-      "color": "#EF4444"
-    }
-  ]
+  "sessions": [],
+  "projects": []
 }

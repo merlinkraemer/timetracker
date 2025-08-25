@@ -1,8 +1,6 @@
-# ⏱️ Timetracker
+time tracking application
 
-A simple time tracking application built with Next.js, TypeScript, and Tailwind CSS.
-
-## Stack
+Stack
 
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
